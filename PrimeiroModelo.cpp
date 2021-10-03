@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <cmath>
 
 using std::fstream;
 using std::ofstream;
@@ -42,8 +43,8 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 100;
-int CAPACIDADE_PESO_DOS_VEICULOS = 200;
+int NUMERO_PEDIDOS = 10;
+int CAPACIDADE_PESO_DOS_VEICULOS = 20000;
 int CUSTO_DE_VEICULO = 10;
 int NUMERO_DE_VEICULOS = 25;
 
@@ -51,7 +52,7 @@ void readCsv(Pedido* pedidos);
 void montarDistanciaTempoEntrePedidos(Pedido* pedidos, double** d, double** t);
 double distanciaEuclidiana(Pedido origem, Pedido destino);
 
-CVRP createParamsVars(IloEnv* env, Pedido* pedidos);
+/*CVRP createParamsVars(IloEnv* env, Pedido* pedidos);
 
 SaidaEsperada CVRPModel(IloEnv* env, IloModel* modelo, CVRP* vars);
 
@@ -63,7 +64,7 @@ void restricaoCapacidade(IloEnv *env, IloModel *modelo, CVRP* vars);
 void restricaoDeChegada(IloEnv *env, IloModel *modelo, CVRP* vars);
 void restricaoDeSaida(IloEnv *env, IloModel *modelo, CVRP* vars);
 void restricaoEliminacaoDeSubRota(IloModel *modelo, CVRP* vars);
-void restricaoComplementarDeEliminacao(IloEnv* env, IloModel *modelo, CVRP *vars);
+void restricaoComplementarDeEliminacao(IloEnv* env, IloModel *modelo, CVRP *vars);*/
 
 
 int main(int argc, char** argv) {
@@ -75,45 +76,145 @@ int main(int argc, char** argv) {
 
 		Pedido* pedidos = (Pedido*)malloc(sizeof(Pedido) * NUMERO_PEDIDOS);
 		readCsv(pedidos);
-
-		CVRP vars = createParamsVars(&env,pedidos);
-		SaidaEsperada output = CVRPModel(&env, &modelo, &vars);
-		IloArray<IloExtractableArray> relaxa(output.env, N);
+		// criacao de parametros e variaveis
+		IloNumArray p(env, N);								// Peso requisitado por um cliente
 		for (int i = 0; i < N; i++) {
-			relaxa[i] = IloExtractableArray(output.env, N);
+			p[i] = pedidos[i].demanda;
+		}
+		IloNum Q = CAPACIDADE_PESO_DOS_VEICULOS;
+
+		IloArray <IloBoolVarArray> x(env, N);				// Rotas atribuidas aos arcos (i,j)
+		for (int i = 0; i < N; i++) {
+			x[i] = IloBoolVarArray(env, N);
+		}
+
+		IloArray <IloNumArray> d(env, N);					// Matrizes de distancia e tempo entre pedido i ate j
+		for (int i = 0; i < N; i++) {
+			d[i] = IloNumArray(env, N);
 		}
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
-				relaxa[i][j] = IloConversion(output.env, output.vars.x[i][j], ILOFLOAT);
-			}
-		}
-
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				output.modelo.add(relaxa[i][j]);
 				if (i == j) {
-					output.vars.x[i][j].setBounds(0, 0);
+					d[i][j] = 1;
+					x[i][j].setBounds(0, 0);
 				}
 				else {
-					output.vars.x[i][j].setBounds(0, 1);
+					d[i][j] = distanciaEuclidiana(pedidos[i], pedidos[j]);
+					x[i][j].setBounds(0, 1);
+				}
+				//cout << d[i][j] << " ";
+			}
+			//cout << endl;
+		}
+
+		IloNumVarArray u(env, N, 0, IloInfinity);							// Variavel auxiliar para eliminicao de rota
+
+		CVRP vars;
+		vars.d = d;
+		vars.p = p;
+		vars.Q = Q;
+		vars.u = u;
+		vars.x = x;
+
+		//criacao do modelo
+		//funcao objetivo 
+		IloExpr fo(env);
+		for (int i = 0; i < N; i++) {
+			for (int j = 0; j < N; j++) {
+				fo += d[i][j] * x[i][j];
+			}
+		}
+		modelo.add(IloMinimize(env, fo));
+		fo.end();
+		//restricoes
+		//capacidade
+		for (int i = 0; i < N; i++) {
+			IloExpr restCapacity(env);
+			for (int j = 0; j < N; j++) {
+				restCapacity += p[i] * x[i][j];
+			}
+			modelo.add(restCapacity <= Q);
+			restCapacity.end();
+		}
+		//chegada e saida
+		for (int j = 0; j < N; j++) {
+			IloExpr restChegada(env);
+			for (int i = 0; i < N; i++) {
+				if (i != j) {
+					restChegada += x[i][j];
+				}
+			}
+			modelo.add(restChegada == 1);
+			restChegada.end();
+		}
+		for (int i = 0; i < N; i++) {
+			IloExpr restSaida(env);
+			for (int j = 0; j < N; j++) {
+				if (j != i) {
+					restSaida += x[i][j];
+				}
+			}
+			modelo.add(restSaida == 1);
+			restSaida.end();
+		}
+		//eliminacao1
+		for (int i = 0; i < N; i++) {
+			for (int j = 0; j < N; j++) {
+				if (i != j) {
+					modelo.add(u[j] >= u[i] + p[i] - Q * (1 - x[i][j]));
 				}
 			}
 		}
+		//eliminacao2
+		for (int i = 0; i < N; i++) {
+			modelo.add(u[i] >= p[i]);
+			modelo.add(u[i] <= Q);
+		}
+
+		SaidaEsperada out;
+		out.env = env;
+		out.modelo = modelo;
+		out.vars = vars;
+		//
+
+		IloArray<IloExtractableArray> relaxa(env, N);
+		for (int i = 0; i < N; i++) {
+			relaxa[i] = IloExtractableArray(env, N);
+		}
+		for (int i = 0; i < N; i++) {
+			for (int j = 0; j < N; j++) {
+				if (i == j) {
+					x[i][j].setBounds(0, 0);
+				}
+				else {
+					x[i][j].setBounds(0, 1);
+				}
+				relaxa[i][j] = IloConversion(env, x[i][j], ILOFLOAT);
+				modelo.add(relaxa[i][j]);
+			}
+		}
+
+		/*for (int i = 0; i < N; i++) {
+			for (int j = 0; j < N; j++) {
+				
+			}
+		}*/
 		
-		IloCplex cplex(output.modelo);
-		cplex.setOut(output.env.getNullStream());
+		IloCplex cplex(modelo);
+		cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
-		IloArray <IloNumArray> sol(output.env, N);
+		IloArray <IloNumArray> sol(env, N);
 		for (int i = 0; i < N; i++) {
-			sol[i] = IloNumArray(output.env, N);
+			sol[i] = IloNumArray(env, N);
 		}
 		//Relax-and-Fix por períodos
+		int check = 0;
 		for (int t = 0; t < N; t++) {
 			cout << "Iteração" << t << "\t" << objFO << endl;
 			//Remove as relaxões do período
 			for (int i = 0; i < N; i++) {
-				output.modelo.remove(relaxa[i][t]);
+				modelo.remove(relaxa[check][i]);
 			}
 			cplex.solve();
 			//cout << "It :" << t << endl;
@@ -121,22 +222,18 @@ int main(int argc, char** argv) {
 			//cout << "result = " << objFO << endl;
 			// Salva a parte inteira da solução
 			//cout << "extract 1" << endl;
-			for (int i = 0; i < N; i++) {
-				cout << "vars = " << output.vars.x[t][i] << endl;
-				cplex.getValue(output.vars.x[t][i], sol[t][i]);
-			}
+			//cout << "vars = " << x[t][i] << endl;
+			cplex.getValues(x[check], sol[check]);
 			//cout << "extract 2" << endl;
 			//Fixa a parte inteira da solução
 			for (int i = 0; i < N; i++) {
-				if (sol[t][i] > 0) {
-					cout << "sol [" << t << "][" << i << ']' << "=" << sol[t][i] << endl;
-				}
-				if (sol[t][i] >= 0.8) {
-					cout << "sol [" << t << "][" << i << ']' << "=" << sol[t][i] << endl;
-					output.vars.x[t][i].setBounds(1, 1);
+				if (sol[check][i] >= 0.8) {
+					cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
+					x[check][i].setBounds(1, 1);
+					check = i;
 				}
 				else {
-					output.vars.x[t][i].setBounds(0, 0);
+					x[check][i].setBounds(0, 0);
 				}
 			}
 		}
@@ -239,141 +336,6 @@ void montarDistanciaTempoEntrePedidos(Pedido* pedidos, double** d, double** t) {
 double distanciaEuclidiana(Pedido origem, Pedido destino) {
 	double dx = (double)destino.x - (double)origem.x;
 	double dy = (double)destino.y - (double)origem.y;
-	return dx * dx + dy * dy;
+	return sqrt(dx * dx + dy * dy);
 }
 
-SaidaEsperada CVRPModel(IloEnv *env, IloModel *modelo, CVRP *vars) {
-	funcaoObjetivo(&(*env), &(*modelo), &(*vars));
-	criarRestricoes(&(*env), &(*modelo), &(*vars));
-	SaidaEsperada out;
-	out.env = *env;
-	out.modelo = *modelo;
-	out.vars = *vars;
-
-	return out;
-}
-void criarRestricoes(IloEnv *env, IloModel *modelo, CVRP *vars) {
-	restricaoCapacidade(&(*env), &(*modelo), &(*vars));
-	restricaoDeChegada(&(*env), &(*modelo), &(*vars));
-	restricaoDeSaida(&(*env), &(*modelo), &(*vars));
-	restricaoEliminacaoDeSubRota(&(*modelo), &(*vars));
-	restricaoComplementarDeEliminacao(&(*env), &(*modelo), &(*vars));
-}
-
-void restricaoCapacidade(IloEnv *env, IloModel *modelo, CVRP *vars) {
-	//sum Pi*Xij <= Qk
-	int N = NUMERO_PEDIDOS;
-	for (int i = 0; i < N; i++) {
-		IloExpr restCapacity(*env);
-		for (int j = 0; j < N; j++) {
-			restCapacity += (*vars).p[i] * (*vars).x[i][j];
-		}
-		(*modelo).add(restCapacity <= (*vars).Q);
-		restCapacity.end();
-	}
-}
-void restricaoDeChegada(IloEnv *env, IloModel *modelo, CVRP *vars) {
-	//sum Xij = 1 i!=j
-	int N = NUMERO_PEDIDOS;
-
-	for (int j = 0; j < N; j++) {
-		IloExpr restChegada(*env);
-		for (int i = 0; i < N; i++) {
-			if (i != j) {
-				restChegada += (*vars).x[i][j];
-			}
-		}
-		(*modelo).add(restChegada == 1);
-		restChegada.end();
-	}
-}
-void restricaoDeSaida(IloEnv *env, IloModel *modelo, CVRP* vars) {
-	//
-	int N = NUMERO_PEDIDOS;
-	for (int i = 0; i < N; i++) {
-		IloExpr restSaida(*env);
-		for (int j = 0; j < N; j++) {
-			if (j != i) {
-				restSaida += (*vars).x[i][j];
-			}
-		}
-		(*modelo).add(restSaida == 1);
-		restSaida.end();
-	}
-}
-void restricaoEliminacaoDeSubRota(IloModel *modelo, CVRP* vars) {
-	// if Xij == 1 --> Ui + Qi == Uj 
-	int N = NUMERO_PEDIDOS;
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < N; j++) {
-			if (i != j) {
-				(*modelo).add((*vars).u[j] >= (*vars).u[i] + (*vars).p[i] - (*vars).Q * (1 - (*vars).x[i][j]));
-			}
-		}
-	}
-}
-void restricaoComplementarDeEliminacao(IloEnv *env, IloModel *modelo, CVRP* vars) {
-	// q[i] <= u[i] <= Qmax
-	int N = NUMERO_PEDIDOS;
-	for (int i = 0; i < N; i++) {
-		IloExpr urest(*env);
-		urest = (*vars).u[i];
-		(*modelo).add(urest >= (*vars).p[i]);
-		(*modelo).add(urest <= (*vars).Q);
-		urest.end();
-	}
-}
-
-void funcaoObjetivo(IloEnv *env, IloModel *modelo, CVRP *vars) {
-	int N = NUMERO_PEDIDOS;
-	IloExpr fo(*env);
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < N; j++) {
-			fo += (*vars).d[i][j] * (*vars).x[i][j];
-		}
-	}
-	(*modelo).add(IloMinimize(*env, fo));
-	fo.end();
-}
-
-
-CVRP createParamsVars(IloEnv *env, Pedido* pedidos) {
-	int N = NUMERO_PEDIDOS;
-	IloNumArray p(*env, N);								// Peso requisitado por um cliente
-	for (int i = 0; i < N; i++) {
-		p[i] = pedidos[i].demanda;
-	}
-	IloNum Q = CAPACIDADE_PESO_DOS_VEICULOS;
-
-	IloArray <IloBoolVarArray> x(*env, N);				// Rotas atribuidas aos arcos (i,j)
-	for (int i = 0; i < N; i++) {
-		x[i] = IloBoolVarArray(*env, N);
-	}
-
-	IloArray <IloNumArray> d(*env, N);					// Matrizes de distancia e tempo entre pedido i ate j
-	for (int i = 0; i < N; i++) {
-		d[i] = IloNumArray(*env, N);
-	}		
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < N; j++) {
-			if (i == j) {
-				d[i][j] = -1;
-				x[i][j].setBounds(0, 0);
-			}
-			else {
-				d[i][j] = distanciaEuclidiana(pedidos[i], pedidos[j]);
-				x[i][j].setBounds(0, 1);
-			}
-		}
-	}
-
-	IloNumVarArray u(*env, N, 0, IloInfinity);							// Variavel auxiliar para eliminicao de rota
-
-	CVRP vars;
-	vars.d = d;
-	vars.p = p;
-	vars.Q = Q;
-	vars.u = u;
-	vars.x = x;
-	return vars;
-}
