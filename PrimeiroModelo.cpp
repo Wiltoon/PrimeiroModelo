@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <cmath>
+#include <vector>
 
 using std::fstream;
 using std::ofstream;
@@ -43,8 +44,8 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 10;
-int CAPACIDADE_PESO_DOS_VEICULOS = 20000;
+int NUMERO_PEDIDOS = 100;
+int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
 int NUMERO_DE_VEICULOS = 25;
 
@@ -131,13 +132,31 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < N; i++) {
 			IloExpr restCapacity(env);
 			for (int j = 0; j < N; j++) {
-				restCapacity += p[i] * x[i][j];
+				if (i != j) {
+					restCapacity += p[i] * x[i][j];
+				}
 			}
 			modelo.add(restCapacity <= Q);
 			restCapacity.end();
 		}
+		//deposito
+		IloExpr depCli(env);
+		IloExpr cliDep(env);
+		int qntMinVei = 0;		
+		for (int i = 1; i < N; i++) {
+			depCli += x[0][i];
+			cliDep += x[i][0];
+			qntMinVei += p[i];
+		}
+		qntMinVei = qntMinVei / Q + 1;
+		cout << "Armazenamento =" << qntMinVei << endl;
+		modelo.add(depCli >= qntMinVei);
+		//modelo.add(cliDep >= qntMinVei);
+		modelo.add(depCli == cliDep);
+		depCli.end();
+		cliDep.end();
 		//chegada e saida
-		for (int j = 0; j < N; j++) {
+		for (int j = 1; j < N; j++) {
 			IloExpr restChegada(env);
 			for (int i = 0; i < N; i++) {
 				if (i != j) {
@@ -147,7 +166,7 @@ int main(int argc, char** argv) {
 			modelo.add(restChegada == 1);
 			restChegada.end();
 		}
-		for (int i = 0; i < N; i++) {
+		for (int i = 1; i < N; i++) {
 			IloExpr restSaida(env);
 			for (int j = 0; j < N; j++) {
 				if (j != i) {
@@ -161,12 +180,12 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				if (i != j) {
-					modelo.add(u[j] >= u[i] + p[i] - Q * (1 - x[i][j]));
+					modelo.add(u[i] >= u[j] + p[j] - Q * (1 - x[i][j]));
 				}
 			}
 		}
 		//eliminacao2
-		for (int i = 0; i < N; i++) {
+		for (int i = 1; i < N; i++) {
 			modelo.add(u[i] >= p[i]);
 			modelo.add(u[i] <= Q);
 		}
@@ -209,32 +228,65 @@ int main(int argc, char** argv) {
 			sol[i] = IloNumArray(env, N);
 		}
 		//Relax-and-Fix por períodos
-		int check = 0;
-		for (int t = 0; t < N; t++) {
-			cout << "Iteração" << t << "\t" << objFO << endl;
-			//Remove as relaxões do período
-			for (int i = 0; i < N; i++) {
-				modelo.remove(relaxa[check][i]);
+		vector<int> visitar;
+		vector<int> visitado;
+		visitar.push_back(0);
+		for (int t = 0; visitado.size() <= N; t++) {
+			cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
+			vector<int> auxvisitar;
+			for (int i = 0; i < visitado.size(); i++) {
+				cout << "VISITADO[" << i << "] = \t" << visitado[i] << endl;
+			}
+			for (int i = 0; i < visitar.size(); i++){
+				cout << "VISITAR[" << i << "] = \t" << visitar[i] << endl;
+			}
+
+			cout << "ITERADOR" << t << "\t" << objFO << endl;
+			//Remove as relaxões que serão resolvidas em binário
+			for (int i = 0; i < visitar.size(); i++) {
+				for (int j = 0; j < N; j++) {
+					modelo.remove(relaxa[visitar[i]][j]);
+				}
 			}
 			cplex.solve();
-			//cout << "It :" << t << endl;
 			objFO = cplex.getObjValue();
 			//cout << "result = " << objFO << endl;
 			// Salva a parte inteira da solução
-			//cout << "extract 1" << endl;
-			//cout << "vars = " << x[t][i] << endl;
-			cplex.getValues(x[check], sol[check]);
+			for (int i = 0; i < visitar.size(); i++) {
+				cplex.getValues(x[visitar[i]], sol[visitar[i]]);
+			}
 			//cout << "extract 2" << endl;
 			//Fixa a parte inteira da solução
-			for (int i = 0; i < N; i++) {
-				if (sol[check][i] >= 0.8) {
-					cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
-					x[check][i].setBounds(1, 1);
-					check = i;
+			for (int check = 0; check < visitar.size(); check++) {
+				for (int i = 0; i < N; i++) {
+					//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
+					if (sol[visitar[check]][i] >= 0.8) {
+						cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
+						// FIXA VALOR DE X[i][j] ja resolvido
+						x[visitar[check]][i].setBounds(1, 1);
+						auxvisitar.push_back(i);
+						int encontrado = 0;
+						for (int it = 0; it < visitado.size(); it++) {
+							//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
+							if (visitado[it] == i) {
+								encontrado = 1;
+							}
+						}
+						if (encontrado == 0) {
+							visitado.push_back(i);
+						}
+					}
+					else {
+						x[check][i].setBounds(0, 0);
+					}
 				}
-				else {
-					x[check][i].setBounds(0, 0);
-				}
+			}
+			// Apagar a memoria do visitar e colocar o valor do auxvisitar
+			visitar.clear();
+			//cout << "SIZE -> " << auxvisitar.size() << endl;
+			for (int i = 0; i < auxvisitar.size(); i++){
+				visitar.push_back(auxvisitar[i]);
+				//cout << "AUXVISITAR[" << i << "] = \t" << auxvisitar[i] <<endl;
 			}
 		}
 		cout << "Resultado Final" << objFO << endl;
