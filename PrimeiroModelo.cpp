@@ -1,4 +1,4 @@
-//
+
 #include <ilcplex/ilocplex.h>
 #include <stdlib.h>
 #include <math.h>
@@ -44,7 +44,7 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 100;
+int NUMERO_PEDIDOS = 20;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
 int NUMERO_DE_VEICULOS = 25;
@@ -213,33 +213,31 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		/*for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				
-			}
-		}*/
-		
 		IloCplex cplex(modelo);
 		cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
-		IloArray <IloNumArray> sol(env, N);
+		IloArray <IloFloatArray> sol(env, N);
 		for (int i = 0; i < N; i++) {
-			sol[i] = IloNumArray(env, N);
+			sol[i] = IloFloatArray(env, N);
 		}
 		//Relax-and-Fix por períodos
 		vector<int> visitar;
 		vector<int> visitado;
 		visitar.push_back(0);
 		for (int t = 0; visitado.size() <= N; t++) {
-			cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
+			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
+			/*cout << "VISITADO[";
 			for (int i = 0; i < visitado.size(); i++) {
-				cout << "VISITADO[" << i << "] = \t" << visitado[i] << endl;
+				cout << visitado[i] << ", ";
 			}
+			cout << "]" << endl;
+			cout << "VISITAR[";
 			for (int i = 0; i < visitar.size(); i++){
-				cout << "VISITAR[" << i << "] = \t" << visitar[i] << endl;
+				cout << visitar[i] << ", ";
 			}
+			cout << "]" << endl;*/
 
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
@@ -248,45 +246,67 @@ int main(int argc, char** argv) {
 					modelo.remove(relaxa[visitar[i]][j]);
 				}
 			}
-			cplex.solve();
-			objFO = cplex.getObjValue();
-			//cout << "result = " << objFO << endl;
-			// Salva a parte inteira da solução
-			for (int i = 0; i < visitar.size(); i++) {
-				cplex.getValues(x[visitar[i]], sol[visitar[i]]);
-			}
-			//cout << "extract 2" << endl;
-			//Fixa a parte inteira da solução
-			for (int check = 0; check < visitar.size(); check++) {
+			IloBool result = cplex.solve();
+			if (result) {
+				objFO = cplex.getObjValue();
+				//cout << "result = " << objFO << endl;
+				// Salva a parte inteira da solução
+				for (int i = 0; i < visitar.size(); i++) {
+					cplex.getValues(x[visitar[i]], sol[visitar[i]]);
+				}
+				cout << "Partial Result:" << endl;
 				for (int i = 0; i < N; i++) {
-					//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
-					if (sol[visitar[check]][i] >= 0.8) {
-						cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
-						// FIXA VALOR DE X[i][j] ja resolvido
-						x[visitar[check]][i].setBounds(1, 1);
-						auxvisitar.push_back(i);
-						int encontrado = 0;
-						for (int it = 0; it < visitado.size(); it++) {
-							//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
-							if (visitado[it] == i) {
-								encontrado = 1;
+					for (int j = 0; j < N; j++) {
+						cout << sol[i][j] << " ";
+					}
+					cout << endl;
+				}
+				//cout << "extract 2" << endl;
+				//Fixa a parte inteira da solução
+				for (int check = 0; check < visitar.size(); check++) {
+					for (int i = 0; i < N; i++) {
+						//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
+						if (sol[visitar[check]][i] >= 0.8) {
+							// cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
+							// FIXA VALOR DE X[i][j] ja resolvido
+							x[visitar[check]][i].setBounds(1, 1);
+							if (i != 0) {
+								auxvisitar.push_back(i);
+							}
+							int encontrado = 0;
+							for (int it = 0; it < visitado.size(); it++) {
+								//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
+								if (visitado[it] == i) {
+									encontrado = 1;
+								}
+							}
+							if (encontrado == 0) {
+								if (i != 0) {
+									visitado.push_back(i);
+								}
 							}
 						}
-						if (encontrado == 0) {
-							visitado.push_back(i);
+						else {
+							x[check][i].setBounds(0, 0);
 						}
 					}
-					else {
-						x[check][i].setBounds(0, 0);
-					}
+				}
+				// Apagar a memoria do visitar e colocar o valor do auxvisitar
+				visitar.clear();
+				//cout << "SIZE -> " << auxvisitar.size() << endl;
+				for (int i = 0; i < auxvisitar.size(); i++) {
+					visitar.push_back(auxvisitar[i]);
+					//cout << "AUXVISITAR[" << i << "] = \t" << auxvisitar[i] <<endl;
 				}
 			}
-			// Apagar a memoria do visitar e colocar o valor do auxvisitar
-			visitar.clear();
-			//cout << "SIZE -> " << auxvisitar.size() << endl;
-			for (int i = 0; i < auxvisitar.size(); i++){
-				visitar.push_back(auxvisitar[i]);
-				//cout << "AUXVISITAR[" << i << "] = \t" << auxvisitar[i] <<endl;
+			else {
+				//DESFIXAR VARIVEIS FIXADAS E RESOLVER NOVAMENTE
+
+				for (int i = 0; i < visitado.size(); i++) {
+					for (int j = 0; j < N; j++) {
+						x[i][j].setBounds(0, 1);
+					}
+				}
 			}
 		}
 		cout << "Resultado Final" << objFO << endl;
