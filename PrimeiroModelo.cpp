@@ -217,9 +217,9 @@ int main(int argc, char** argv) {
 		cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
-		IloArray <IloFloatArray> sol(env, N);
+		IloArray <IloNumArray> sol(env, N);
 		for (int i = 0; i < N; i++) {
-			sol[i] = IloFloatArray(env, N);
+			sol[i] = IloNumArray(env, N);
 		}
 		//Relax-and-Fix por períodos
 		vector<int> visitar;
@@ -281,9 +281,7 @@ int main(int argc, char** argv) {
 								}
 							}
 							if (encontrado == 0) {
-								if (i != 0) {
-									visitado.push_back(i);
-								}
+								visitado.push_back(i);
 							}
 						}
 						else {
@@ -304,7 +302,8 @@ int main(int argc, char** argv) {
 
 				for (int i = 0; i < visitado.size(); i++) {
 					for (int j = 0; j < N; j++) {
-						x[i][j].setBounds(0, 1);
+						cout << visitado[i] << "--" << j << endl;
+						x[visitado[i]][j].setBounds(0, 1);
 					}
 				}
 			}
