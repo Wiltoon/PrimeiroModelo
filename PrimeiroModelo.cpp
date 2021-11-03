@@ -149,9 +149,9 @@ int main(int argc, char** argv) {
 			qntMinVei += p[i];
 		}
 		qntMinVei = qntMinVei / Q + 1;
-		cout << "Armazenamento =" << qntMinVei << endl;
+		//cout << "Armazenamento =" << qntMinVei << endl;
 		modelo.add(depCli >= qntMinVei);
-		//modelo.add(cliDep >= qntMinVei);
+		modelo.add(cliDep >= qntMinVei);
 		modelo.add(depCli == cliDep);
 		depCli.end();
 		cliDep.end();
@@ -214,7 +214,7 @@ int main(int argc, char** argv) {
 		}
 
 		IloCplex cplex(modelo);
-		cplex.setOut(env.getNullStream());
+		//cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
 		IloArray <IloNumArray> sol(env, N);
@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
 		for (int t = 0; visitado.size() <= N; t++) {
 			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
-			/*cout << "VISITADO[";
+			cout << "VISITADO[";
 			for (int i = 0; i < visitado.size(); i++) {
 				cout << visitado[i] << ", ";
 			}
@@ -237,15 +237,31 @@ int main(int argc, char** argv) {
 			for (int i = 0; i < visitar.size(); i++){
 				cout << visitar[i] << ", ";
 			}
-			cout << "]" << endl;*/
+			cout << "]" << endl;
+			/*if (visitar.size() == 0) {
+				for (int j = 0; j < N; j++) {
+					if (sol[j][0] >= 0.8) {
+						x[j][0].setBounds(0, 1);
+						for (int index = 0; index < N; index++) {
+							if (naoVisitado) {
+								x[j][destino]
+								visitar[i] destino
+							}
+						}
+					x[j][0].setBounds(0, 1);
+					}
+				}
+				acabou as rotas, e ainda esta no loop, basta forçar a saida do deposito e visitar outro cara
+			}*/
 
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
 			for (int i = 0; i < visitar.size(); i++) {
-				for (int j = 0; j < N; j++) {
+				for (int j = 1; j < N; j++) {
 					modelo.remove(relaxa[visitar[i]][j]);
 				}
 			}
+			cplex.setParam(IloCplex::TiLim, 20);
 			IloBool result = cplex.solve();
 			if (result) {
 				objFO = cplex.getObjValue();
@@ -257,9 +273,10 @@ int main(int argc, char** argv) {
 				cout << "Partial Result:" << endl;
 				for (int i = 0; i < N; i++) {
 					for (int j = 0; j < N; j++) {
-						cout << sol[i][j] << " ";
+						if (sol[i][j] >= 0.8) {
+							cout << i << "-->" << j << endl;
+						}
 					}
-					cout << endl;
 				}
 				//cout << "extract 2" << endl;
 				//Fixa a parte inteira da solução
@@ -267,9 +284,17 @@ int main(int argc, char** argv) {
 					for (int i = 0; i < N; i++) {
 						//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
 						if (sol[visitar[check]][i] >= 0.8) {
-							// cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
+							cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
 							// FIXA VALOR DE X[i][j] ja resolvido
-							x[visitar[check]][i].setBounds(1, 1);
+							for (int row = 0; row < N; row++) {
+								if (row != visitar[check]) {
+									x[row][i].setBounds(0, 0);
+								}
+								else { 
+									x[visitar[check]][i].setBounds(1, 1);
+									x[i][visitar[check]].setBounds(0, 0);
+								}
+							}
 							if (i != 0) {
 								auxvisitar.push_back(i);
 							}
@@ -281,7 +306,9 @@ int main(int argc, char** argv) {
 								}
 							}
 							if (encontrado == 0) {
-								visitado.push_back(i);
+								if (i != 0) {
+									visitado.push_back(i);
+								}
 							}
 						}
 						else {
@@ -302,8 +329,8 @@ int main(int argc, char** argv) {
 
 				for (int i = 0; i < visitado.size(); i++) {
 					for (int j = 0; j < N; j++) {
-						cout << visitado[i] << "--" << j << endl;
 						x[visitado[i]][j].setBounds(0, 1);
+						x[j][visitado[i]].setBounds(0, 1);
 					}
 				}
 			}
