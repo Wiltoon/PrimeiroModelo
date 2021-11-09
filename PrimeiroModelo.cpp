@@ -45,6 +45,8 @@ struct SaidaEsperada {
 };
 
 int NUMERO_PEDIDOS = 20;
+int TIME_MAX = 24;
+int SOMADOR_TIME = 3;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
 int NUMERO_DE_VEICULOS = 25;
@@ -96,7 +98,7 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				if (i == j) {
-					d[i][j] = 1;
+					d[i][j] = 999999;
 					x[i][j].setBounds(0, 0);
 				}
 				else {
@@ -140,21 +142,6 @@ int main(int argc, char** argv) {
 			restCapacity.end();
 		}
 		//deposito
-		IloExpr depCli(env);
-		IloExpr cliDep(env);
-		int qntMinVei = 0;		
-		for (int i = 1; i < N; i++) {
-			depCli += x[0][i];
-			cliDep += x[i][0];
-			qntMinVei += p[i];
-		}
-		qntMinVei = qntMinVei / Q + 1;
-		//cout << "Armazenamento =" << qntMinVei << endl;
-		modelo.add(depCli >= qntMinVei);
-		modelo.add(cliDep >= qntMinVei);
-		modelo.add(depCli == cliDep);
-		depCli.end();
-		cliDep.end();
 		//chegada e saida
 		for (int j = 1; j < N; j++) {
 			IloExpr restChegada(env);
@@ -176,6 +163,21 @@ int main(int argc, char** argv) {
 			modelo.add(restSaida == 1);
 			restSaida.end();
 		}
+		IloExpr depCli(env);
+		IloExpr cliDep(env);
+		int qntMinVei = 0;		
+		for (int i = 1; i < N; i++) {
+			depCli += x[0][i];
+			cliDep += x[i][0];
+			qntMinVei += p[i];
+		}
+		qntMinVei = qntMinVei / Q + 1;
+		//cout << "Armazenamento =" << qntMinVei << endl;
+		modelo.add(depCli >= qntMinVei);
+		modelo.add(cliDep >= qntMinVei);
+		modelo.add(depCli == cliDep);
+		depCli.end();
+		cliDep.end();
 		//eliminacao1
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
@@ -214,7 +216,7 @@ int main(int argc, char** argv) {
 		}
 
 		IloCplex cplex(modelo);
-		//cplex.setOut(env.getNullStream());
+		cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
 		IloArray <IloNumArray> sol(env, N);
@@ -222,10 +224,14 @@ int main(int argc, char** argv) {
 			sol[i] = IloNumArray(env, N);
 		}
 		//Relax-and-Fix por períodos
+		bool PRIMEIRAITERACAO = true;
 		vector<int> visitar;
 		vector<int> visitado;
-		visitar.push_back(0);
-		for (int t = 0; visitado.size() <= N; t++) {
+		vector<int> pedidos_realizados;
+ 		visitar.push_back(0);
+		//visitado.push_back(0);
+		int tempo = 9;
+		for (int t = 0; pedidos_realizados.size() <= N; t++) {
 			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
 			cout << "VISITADO[";
@@ -238,30 +244,17 @@ int main(int argc, char** argv) {
 				cout << visitar[i] << ", ";
 			}
 			cout << "]" << endl;
-			/*if (visitar.size() == 0) {
-				for (int j = 0; j < N; j++) {
-					if (sol[j][0] >= 0.8) {
-						x[j][0].setBounds(0, 1);
-						for (int index = 0; index < N; index++) {
-							if (naoVisitado) {
-								x[j][destino]
-								visitar[i] destino
-							}
-						}
-					x[j][0].setBounds(0, 1);
-					}
-				}
-				acabou as rotas, e ainda esta no loop, basta forçar a saida do deposito e visitar outro cara
-			}*/
 
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
-			for (int i = 0; i < visitar.size(); i++) {
-				for (int j = 1; j < N; j++) {
-					modelo.remove(relaxa[visitar[i]][j]);
+			if (PRIMEIRAITERACAO) {
+				for (int i = 0; i < visitar.size(); i++) {
+					for (int j = 0; j < N; j++) {
+						modelo.remove(relaxa[visitar[i]][j]);
+					}
 				}
 			}
-			cplex.setParam(IloCplex::TiLim, 20);
+			cplex.setParam(IloCplex::TiLim, tempo);
 			IloBool result = cplex.solve();
 			if (result) {
 				objFO = cplex.getObjValue();
@@ -274,7 +267,7 @@ int main(int argc, char** argv) {
 				for (int i = 0; i < N; i++) {
 					for (int j = 0; j < N; j++) {
 						if (sol[i][j] >= 0.8) {
-							cout << i << "-->" << j << endl;
+							cout << i << "-->" << j << "\t\tdistance = " << d[i][j] << endl;
 						}
 					}
 				}
@@ -290,7 +283,7 @@ int main(int argc, char** argv) {
 								if (row != visitar[check]) {
 									x[row][i].setBounds(0, 0);
 								}
-								else { 
+								else {
 									x[visitar[check]][i].setBounds(1, 1);
 									x[i][visitar[check]].setBounds(0, 0);
 								}
@@ -298,14 +291,14 @@ int main(int argc, char** argv) {
 							if (i != 0) {
 								auxvisitar.push_back(i);
 							}
-							int encontrado = 0;
+							bool encontrado = false;
 							for (int it = 0; it < visitado.size(); it++) {
 								//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
 								if (visitado[it] == i) {
-									encontrado = 1;
+									encontrado = true;
 								}
 							}
-							if (encontrado == 0) {
+							if (!encontrado) {
 								if (i != 0) {
 									visitado.push_back(i);
 								}
@@ -319,6 +312,47 @@ int main(int argc, char** argv) {
 				// Apagar a memoria do visitar e colocar o valor do auxvisitar
 				visitar.clear();
 				//cout << "SIZE -> " << auxvisitar.size() << endl;
+				// RELAXAR TODO MUNDO NOVAMENTE E NA HORA DE REMOVER A RELAXAÇAO FIXAR CLIENTES VISITADOS EM 0
+
+				// CASO NAO TENHA MAIS NINGUEM PARA VISITAR (AUXVISITAR == 0) (O AUXVISITAR VIRA O VISITAR)
+				if (auxvisitar.size() == 0) {
+					// FIXAR TODOS OS PEDIDOS VISITADOS EM 0 EXCETO OS DEPOSITOS
+					PRIMEIRAITERACAO = false;
+					for (int el = 0; el < N; el++) {
+						for (int visitei = 0; visitei < visitado.size(); visitei++) {
+							// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
+							int elemento_visitado = visitado[visitei];
+							if (el != elemento_visitado) { 
+								int elemento_nao_visitado = el;
+								// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
+								if (elemento_nao_visitado == 0) {
+									x[0][0].setBounds(0, 0);
+								}
+								else {
+									x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
+								}
+							}
+							else {
+								for (int i = 0; i < N; i++) {
+									x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
+									x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
+								}
+							}
+							// PASSA OS VISITADOS PARA OS REALIZADOS
+							if (el == 0) { // DEVE ADICIONAR OS REALIZADOS SOMENTE UMA VEZ
+								pedidos_realizados.push_back(elemento_visitado);
+							}
+						}
+					}
+					cout << "PEDIDOS REALIZADOS = [";
+					for (int kk = 0; kk < pedidos_realizados.size(); kk++) {
+						cout << pedidos_realizados[kk] << ", ";
+					}
+					cout << "]" << endl;
+					// ZERA A LISTA DE VISITADOS
+					visitado.clear();
+					auxvisitar.push_back(0); // RETORNA AO DEPOSITO
+				}
 				for (int i = 0; i < auxvisitar.size(); i++) {
 					visitar.push_back(auxvisitar[i]);
 					//cout << "AUXVISITAR[" << i << "] = \t" << auxvisitar[i] <<endl;
@@ -326,7 +360,10 @@ int main(int argc, char** argv) {
 			}
 			else {
 				//DESFIXAR VARIVEIS FIXADAS E RESOLVER NOVAMENTE
-
+				if (tempo < TIME_MAX) {
+					cout << "Aumentar tempo do solve " << tempo << "+" << SOMADOR_TIME << endl;
+					tempo = tempo + SOMADOR_TIME;
+				}
 				for (int i = 0; i < visitado.size(); i++) {
 					for (int j = 0; j < N; j++) {
 						x[visitado[i]][j].setBounds(0, 1);
@@ -418,12 +455,9 @@ void readCsv(Pedido* pedidos) {
 
 void montarDistanciaTempoEntrePedidos(Pedido* pedidos, double** d, double** t) {
 	for (int i = 0; i < NUMERO_PEDIDOS; i++) {
-		for (int j = i; j < NUMERO_PEDIDOS; j++) {
+		for (int j = 0; j < NUMERO_PEDIDOS; j++) {
 			if (i == j) {
-				d[i][j] = 1;
-			}
-			else if (i > j) {
-				d[i][j] = IloInfinity;
+				d[i][j] = 9999;
 			}
 			else {
 				d[i][j] = distanciaEuclidiana(pedidos[i], pedidos[j]);
