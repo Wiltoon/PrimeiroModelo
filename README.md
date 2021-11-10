@@ -10,11 +10,11 @@
 - [ ] Construção do R&F
 <p align="center">
   <a href="#Sobre">Sobre |</a>
-  <a href="#cplex">Otimizador - CPLEX |</a>
-  <a href="#ModeloMatematico">Modelo Matemático |</a>
-  <a href="#RelaxFix">Relax-and-Fix |</a>
-  <a href="#BuildingHeuristc">Construção do R&F |</a>
-  <a href="#contact">Contato</a>
+  <a href="#otimizador---cplex">Otimizador - CPLEX |</a>
+  <a href="#modelo-matemático">Modelo Matemático |</a>
+  <a href="#relax-and-fix">Relax-and-Fix |</a>
+  <a href="#construção-do-rf">Construção do R&F |</a>
+  <a href="#contato">Contato</a>
 </p>
 
 # Sobre
