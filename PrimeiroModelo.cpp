@@ -44,8 +44,8 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 20;
-int TIME_MAX = 24;
+int NUMERO_PEDIDOS = 11;
+int TIME_MAX = 60;
 int SOMADOR_TIME = 3;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
 		}
 
 		IloCplex cplex(modelo);
-		cplex.setOut(env.getNullStream());
+		//cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
 		IloArray <IloNumArray> sol(env, N);
@@ -225,13 +225,14 @@ int main(int argc, char** argv) {
 		}
 		//Relax-and-Fix por períodos
 		bool PRIMEIRAITERACAO = true;
+		bool LOOPINFINITO = false;
 		vector<int> visitar;
 		vector<int> visitado;
 		vector<int> pedidos_realizados;
  		visitar.push_back(0);
 		//visitado.push_back(0);
 		int tempo = 9;
-		for (int t = 0; pedidos_realizados.size() <= N; t++) {
+		for (int t = 0; pedidos_realizados.size() < N; t++) {
 			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
 			cout << "VISITADO[";
@@ -244,7 +245,14 @@ int main(int argc, char** argv) {
 				cout << visitar[i] << ", ";
 			}
 			cout << "]" << endl;
-
+			/*cout << "d = [" << endl;
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N; j++) {
+					cout << d[i][j] << "\t";
+				}
+				cout << endl;
+			}
+			cout << "]" << endl;*/
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
 			if (PRIMEIRAITERACAO) {
@@ -255,7 +263,16 @@ int main(int argc, char** argv) {
 				}
 			}
 			cplex.setParam(IloCplex::TiLim, tempo);
+			cplex.extract(modelo);
+			if (!LOOPINFINITO) {
+				char* outputer;
+				string saida("saida_" + to_string(t)+ ".lp");
+				outputer = &saida[0];
+				cplex.exportModel(outputer);
+			}
+			
 			IloBool result = cplex.solve();
+
 			if (result) {
 				objFO = cplex.getObjValue();
 				//cout << "result = " << objFO << endl;
@@ -271,6 +288,7 @@ int main(int argc, char** argv) {
 						}
 					}
 				}
+				
 				//cout << "extract 2" << endl;
 				//Fixa a parte inteira da solução
 				for (int check = 0; check < visitar.size(); check++) {
@@ -279,15 +297,18 @@ int main(int argc, char** argv) {
 						if (sol[visitar[check]][i] >= 0.8) {
 							cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
 							// FIXA VALOR DE X[i][j] ja resolvido
-							for (int row = 0; row < N; row++) {
+							x[visitar[check]][i].setBounds(1, 1);
+							for (int row = 0; row < N; row++) {//PERCORRER A COLUNA
 								if (row != visitar[check]) {
 									x[row][i].setBounds(0, 0);
 								}
-								else {
-									x[visitar[check]][i].setBounds(1, 1);
-									x[i][visitar[check]].setBounds(0, 0);
+							}
+							for (int col = 0; col < N; col++) {//PERCORRENDO A LINHA
+								if (col != i) {
+									x[visitar[check]][col].setBounds(0, 0);
 								}
 							}
+							x[i][visitar[check]].setBounds(0, 0);//ZERANDO O SIMETRICO
 							if (i != 0) {
 								auxvisitar.push_back(i);
 							}
@@ -299,12 +320,10 @@ int main(int argc, char** argv) {
 								}
 							}
 							if (!encontrado) {
-								if (i != 0) {
-									visitado.push_back(i);
-								}
+								visitado.push_back(i);
 							}
 						}
-						else {
+						else { // CONDIÇAO PRA ESSE AQUI ACONTECER
 							x[check][i].setBounds(0, 0);
 						}
 					}
@@ -364,12 +383,20 @@ int main(int argc, char** argv) {
 					cout << "Aumentar tempo do solve " << tempo << "+" << SOMADOR_TIME << endl;
 					tempo = tempo + SOMADOR_TIME;
 				}
+				//if (visitado.size() < N - 1) {
 				for (int i = 0; i < visitado.size(); i++) {
-					for (int j = 0; j < N; j++) {
-						x[visitado[i]][j].setBounds(0, 1);
-						x[j][visitado[i]].setBounds(0, 1);
-					}
+						for (int j = 0; j < N; j++) {
+							x[visitado[i]][j].setBounds(0, 1);
+							x[j][visitado[i]].setBounds(0, 1);
+						}
+						/*for (int javisitado = 0; javisitado < visitado.size(); javisitado++) {
+							x[visitado[i]][visitado[javisitado]].setBounds(0, 0);
+						}*/
 				}
+				/*
+				else {
+					LOOPINFINITO = true;
+				}*/
 			}
 		}
 		cout << "Resultado Final" << objFO << endl;
