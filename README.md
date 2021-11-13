@@ -29,10 +29,18 @@ para poder executar.
 
 # Modelo Matemático
 
-O modelo adotado para este problema é:
-$$\sum\limits_{i\in C} x_{ij}$$
+O modelo matemático a ser seguido está representado a seguir:
+### Função Objetivo
+- <a href="https://www.codecogs.com/eqnedit.php?latex=\min\sum\limits_{i&space;\in&space;V}\sum\limits_{j&space;\in&space;V}&space;x_{ij}d_{ij}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\min\sum\limits_{i&space;\in&space;V}\sum\limits_{j&space;\in&space;V}&space;x_{ij}d_{ij}" title="\min\sum\limits_{i \in V}\sum\limits_{j \in V} x_{ij}d_{ij}" /></a> 
+### Restrições
+- <a href="https://www.codecogs.com/eqnedit.php?latex=\sum_{i&space;\in&space;V'}x_{0i}&space;=&space;\sum_{i&space;\in&space;V'}x_{i0}&space;\ge&space;K_{MIN}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\sum_{i&space;\in&space;V'}x_{0i}&space;=&space;\sum_{i&space;\in&space;V'}x_{i0}&space;\ge&space;K_{MIN}" title="\sum_{i \in V'}x_{0i} = \sum_{i \in V'}x_{i0} \ge K_{MIN}" /></a> 
+- <a href="https://www.codecogs.com/eqnedit.php?latex=\sum_{j\in&space;V}x_{ij}&space;=&space;1&space;\quad&space;\forall&space;i\in&space;V',&space;i&space;\neq&space;j" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\sum_{j\in&space;V}x_{ij}&space;=&space;1&space;\quad&space;\forall&space;i\in&space;V',&space;i&space;\neq&space;j" title="\sum_{j\in V}x_{ij} = 1 \quad \forall i\in V', i \neq j" /></a> 
+- <a href="https://www.codecogs.com/eqnedit.php?latex=\sum_{i\in&space;V}x_{ij}&space;=&space;1&space;\quad&space;\forall&space;j\in&space;V',&space;j&space;\neq&space;i" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\sum_{i\in&space;V}x_{ij}&space;=&space;1&space;\quad&space;\forall&space;j\in&space;V',&space;j&space;\neq&space;i" title="\sum_{i\in V}x_{ij} = 1 \quad \forall j\in V', j \neq i" /></a>
+- <a href="https://www.codecogs.com/eqnedit.php?latex=u_j&space;\ge&space;u_i&space;&plus;&space;p_j&space;-&space;Q_{max}(1&space;-&space;x_{ij})&space;\quad&space;\forall&space;i,j&space;\in&space;V,&space;i&space;\neq&space;j" target="_blank"><img src="https://latex.codecogs.com/gif.latex?u_j&space;\ge&space;u_i&space;&plus;&space;p_j&space;-&space;Q_{max}(1&space;-&space;x_{ij})&space;\quad&space;\forall&space;i,j&space;\in&space;V,&space;i&space;\neq&space;j" title="u_j \ge u_i + p_j - Q_{max}(1 - x_{ij}) \quad \forall i,j \in V, i \neq j" /></a> 
+- <a href="https://www.codecogs.com/eqnedit.php?latex=p_i&space;\le&space;u_i&space;\le&space;Q_{max}\quad&space;\forall&space;i&space;\in&space;V'" target="_blank"><img src="https://latex.codecogs.com/gif.latex?p_i&space;\le&space;u_i&space;\le&space;Q_{max}\quad&space;\forall&space;i&space;\in&space;V'" title="p_i \le u_i \le Q_{max}\quad \forall i \in V'" /></a> 
 
 # Relax-and-Fix
+A heurística Relax-and-Fix conhecida como R&F, tem como objetivo diminuir o tempo de execução de um algoritmo que possuí uma programação inteiramente misto. A heurística transforma todas as variáveis inteiras do modelo em variáveis reais (podendo assumir valores reais, e não somente inteiros). Além disso, a heurística inicialmente relaxa todas as variáveis inteiras, após isso estas variáveis são separadas em um horizonte de planejamento, das quais, a cada iteração uma parcela destas variáveis são transformadas em inteiras novamente e consequentemente o que se tem é um conjunto de variáveis inteiras mais fácil de resolver com um otimizador que utiliza Branch-and-Cut neste caso (CPLEX). No caso do Problema de Roteamento de Veículos a variável inteira que será particionada é a variável binária **x**. Portanto os passos que deverão ser seguidos neste caso será apresentado na próxima seção.
 
 # Construção do R&F
 
