@@ -30,6 +30,7 @@ para poder executar.
 # Modelo Matemático
 
 O modelo adotado para este problema é:
+$$\sum\limits_{i\in C} x_{ij}$$
 
 # Relax-and-Fix
 
