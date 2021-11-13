@@ -7,7 +7,7 @@
 ### Features
 - [x] Modelo Matemático
 - [x] Relaxação das variáveis
-- [ ] Construção do R&F
+- [x] Construção do R&F
 <p align="center">
   <a href="#Sobre">Sobre |</a>
   <a href="#otimizador---cplex">Otimizador - CPLEX |</a>
