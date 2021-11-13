@@ -43,5 +43,12 @@ O modelo matemático a ser seguido está representado a seguir:
 A heurística Relax-and-Fix conhecida como R&F, tem como objetivo diminuir o tempo de execução de um algoritmo que possuí uma programação inteiramente misto. A heurística transforma todas as variáveis inteiras do modelo em variáveis reais (podendo assumir valores reais, e não somente inteiros). Além disso, a heurística inicialmente relaxa todas as variáveis inteiras, após isso estas variáveis são separadas em um horizonte de planejamento, das quais, a cada iteração uma parcela destas variáveis são transformadas em inteiras novamente e consequentemente o que se tem é um conjunto de variáveis inteiras mais fácil de resolver com um otimizador que utiliza Branch-and-Cut neste caso (CPLEX). No caso do Problema de Roteamento de Veículos a variável inteira que será particionada é a variável binária **x**. Portanto os passos que deverão ser seguidos neste caso será apresentado na próxima seção.
 
 # Construção do R&F
+Neste caso a ideia da heurística é particionar o problema através da variável **x** a qual indica o caminho de um vértice a outro, para exemplificar temos um exemplo a seguir com 11 clientes para serem visitados. 
+- Primeiro todas as variáveis de **x** estarão relaxadas
+- A primeira iteração a ser resolvida de forma binária é encontrar o primeiro destino partindo do depósito, ou seja, a relaxação da primeira linha da variável **x** voltará a se tornar binária e o restante continuará relaxado valores entre 0 e 1.
+- Na segunda iteração em diante todos os **clientes** visitados estarão fixados em 0, pois não se deve visitar um cliente mais de uma única vez, e a relaxação dos clientes visitados na iteração anterior serão removidas e voltarão a ser binários, mantendo a relaxação nas variáveis restantes.
+- No final do processo a ideia é que todos os clientes sejam atendidos.  
+![relaxfix](https://user-images.githubusercontent.com/14852213/141658901-e20db051-2e37-4d5b-915b-fe9f8e2fa8db.gif)
 
 # Contato
+
