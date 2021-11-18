@@ -44,9 +44,9 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 20;
-int TIME_MAX = 24;
-int SOMADOR_TIME = 3;
+int NUMERO_PEDIDOS = 11;
+int TIME_MAX = 300;
+int SOMADOR_TIME = 100;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
 int NUMERO_DE_VEICULOS = 25;
@@ -231,7 +231,7 @@ int main(int argc, char** argv) {
  		visitar.push_back(0);
 		//visitado.push_back(0);
 		int tempo = 9;
-		for (int t = 0; pedidos_realizados.size() <= N; t++) {
+		for (int t = 0; pedidos_realizados.size() < N; t++) {
 			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
 			cout << "VISITADO[";
@@ -247,7 +247,33 @@ int main(int argc, char** argv) {
 
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
-			if (PRIMEIRAITERACAO) {
+			if (visitado.size() >= N - 2) {
+				for (int el = 1; el < N; el++) {
+					bool found = false;
+					for (int f = 0; f < visitado.size(); f++) {
+						if (el == visitado[f]) {
+							found = true;
+							break;
+						}
+					}
+					for (int v = 0; v < visitar.size(); v++) {
+						if (el == visitar[v]) {
+							found = true;
+							break;
+						}
+					}
+					if (!found) {
+						visitar.push_back(el);
+					}
+				}
+
+				for (int i = 0; i < visitar.size(); i++) {
+					for (int j = 0; j < N; j++) {
+						modelo.remove(relaxa[visitar[i]][j]);
+					}
+				}
+			}
+			else {
 				for (int i = 0; i < visitar.size(); i++) {
 					for (int j = 0; j < N; j++) {
 						modelo.remove(relaxa[visitar[i]][j]);
@@ -318,10 +344,14 @@ int main(int argc, char** argv) {
 				if (auxvisitar.size() == 0) {
 					// FIXAR TODOS OS PEDIDOS VISITADOS EM 0 EXCETO OS DEPOSITOS
 					PRIMEIRAITERACAO = false;
-					for (int el = 0; el < N; el++) {
-						for (int visitei = 0; visitei < visitado.size(); visitei++) {
-							// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
-							int elemento_visitado = visitado[visitei];
+					for (int visitei = 0; visitei < visitado.size(); visitei++) {
+						// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
+						int elemento_visitado = visitado[visitei];
+						for (int i = 0; i < N; i++) {
+							x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
+							x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
+						}
+						for (int el = 0; el < N; el++) {
 							if (el != elemento_visitado) { 
 								int elemento_nao_visitado = el;
 								// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
@@ -330,12 +360,6 @@ int main(int argc, char** argv) {
 								}
 								else {
 									x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
-								}
-							}
-							else {
-								for (int i = 0; i < N; i++) {
-									x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
-									x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
 								}
 							}
 							// PASSA OS VISITADOS PARA OS REALIZADOS
