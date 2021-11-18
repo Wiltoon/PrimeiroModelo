@@ -44,7 +44,7 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 11;
+int NUMERO_PEDIDOS = 20;
 int TIME_MAX = 60;
 int SOMADOR_TIME = 3;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
