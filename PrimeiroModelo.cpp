@@ -44,7 +44,7 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 20;
+int NUMERO_PEDIDOS = 11;
 int TIME_MAX = 60;
 int SOMADOR_TIME = 3;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
 					restSaida += x[i][j];
 				}
 			}
-			modelo.add(restSaida == 1);
+			modelo.add(restSaida <= 1);
 			restSaida.end();
 		}
 		IloExpr depCli(env);
@@ -179,15 +179,20 @@ int main(int argc, char** argv) {
 		qntMinVei = qntMinVei / Q + 1;
 		//cout << "Armazenamento =" << qntMinVei << endl;
 		modelo.add(depCli >= qntMinVei);
-		modelo.add(cliDep >= qntMinVei);
-		modelo.add(depCli == cliDep);
+		modelo.add(cliDep == 0);
+		//modelo.add(depCli == cliDep);
 		depCli.end();
 		cliDep.end();
 		//eliminacao1
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				if (i != j) {
-					modelo.add(u[j] >= u[i] + p[j] - Q * (1 - x[i][j]));
+					if (i == 0) {
+						modelo.add(u[j] >= p[j] - Q * (1 - x[i][j]));
+					}
+					else {
+						modelo.add(u[j] >= u[i] + p[j] - Q * (1 - x[i][j]));
+					}
 				}
 			}
 		}
@@ -337,7 +342,9 @@ int main(int argc, char** argv) {
 								}
 							}
 							if (!encontrado) {
-								visitado.push_back(i);
+								if (i != 0) {
+									visitado.push_back(i);
+								}
 							}
 						}
 						//else { // CONDIÇAO PRA ESSE AQUI ACONTECER
@@ -359,14 +366,15 @@ int main(int argc, char** argv) {
 							// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
 							int elemento_visitado = visitado[visitei];
 							if (el != elemento_visitado) { 
-								int elemento_nao_visitado = el;
-								// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
-								if (elemento_nao_visitado == 0) {
-									x[0][0].setBounds(0, 0);
-								}
-								else {
-									x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
-								}
+								//int elemento_nao_visitado = el;
+								//// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
+								//if (elemento_nao_visitado == 0) {
+								//	x[0][0].setBounds(0, 0);
+								//}
+								//else {
+								//	cout << "x[0][" << elemento_nao_visitado << "] = " << elemento_nao_visitado << "!!!!" << endl;
+								//	x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
+								//}
 							}
 							else {
 								for (int i = 0; i < N; i++) {
@@ -390,7 +398,9 @@ int main(int argc, char** argv) {
 					auxvisitar.push_back(0); // RETORNA AO DEPOSITO
 				}
 				for (int i = 0; i < auxvisitar.size(); i++) {
-					visitar.push_back(auxvisitar[i]);
+					if (auxvisitar[i] != 0) {
+						visitar.push_back(auxvisitar[i]);
+					}
 					//cout << "AUXVISITAR[" << i << "] = \t" << auxvisitar[i] <<endl;
 				}
 			}
