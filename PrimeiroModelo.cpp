@@ -160,12 +160,17 @@ int main(int argc, char** argv) {
 		}
 		for (int i = 1; i < N; i++) {
 			IloExpr restSaida(env);
+			char* namevar;
+			string name("saidaDoCliente_" + to_string(i));
+			namevar = &name[0];
+			x[i][j].setName(namevar);
+			restSaida.setName(namevar);
 			for (int j = 0; j < N; j++) {
 				if (j != i) {
 					restSaida += x[i][j];
 				}
 			}
-			modelo.add(restSaida <= 1);
+			modelo.add(restSaida == 1);
 			restSaida.end();
 		}
 		IloExpr depCli(env);
@@ -359,43 +364,44 @@ int main(int argc, char** argv) {
 
 				// CASO NAO TENHA MAIS NINGUEM PARA VISITAR (AUXVISITAR == 0) (O AUXVISITAR VIRA O VISITAR)
 				if (auxvisitar.size() == 0) {
+					modelo.remove
 					// FIXAR TODOS OS PEDIDOS VISITADOS EM 0 EXCETO OS DEPOSITOS
-					PRIMEIRAITERACAO = false;
-					for (int el = 0; el < N; el++) {
-						for (int visitei = 0; visitei < visitado.size(); visitei++) {
-							// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
-							int elemento_visitado = visitado[visitei];
-							if (el != elemento_visitado) { 
-								//int elemento_nao_visitado = el;
-								//// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
-								//if (elemento_nao_visitado == 0) {
-								//	x[0][0].setBounds(0, 0);
-								//}
-								//else {
-								//	cout << "x[0][" << elemento_nao_visitado << "] = " << elemento_nao_visitado << "!!!!" << endl;
-								//	x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
-								//}
-							}
-							else {
-								for (int i = 0; i < N; i++) {
-									x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
-									x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
-								}
-							}
-							// PASSA OS VISITADOS PARA OS REALIZADOS
-							if (el == 0) { // DEVE ADICIONAR OS REALIZADOS SOMENTE UMA VEZ
-								pedidos_realizados.push_back(elemento_visitado);
-							}
-						}
-					}
-					cout << "PEDIDOS REALIZADOS = [";
-					for (int kk = 0; kk < pedidos_realizados.size(); kk++) {
-						cout << pedidos_realizados[kk] << ", ";
-					}
-					cout << "]" << endl;
-					// ZERA A LISTA DE VISITADOS
-					visitado.clear();
-					auxvisitar.push_back(0); // RETORNA AO DEPOSITO
+					//PRIMEIRAITERACAO = false;
+					//for (int el = 0; el < N; el++) {
+					//	for (int visitei = 0; visitei < visitado.size(); visitei++) {
+					//		// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
+					//		int elemento_visitado = visitado[visitei];
+					//		if (el != elemento_visitado) { 
+					//			int elemento_nao_visitado = el;
+					//			// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
+					//			if (elemento_nao_visitado == 0) {
+					//				x[0][0].setBounds(0, 0);
+					//			}
+					//			else {
+					//				cout << "x[0][" << elemento_nao_visitado << "] = " << elemento_nao_visitado << "!!!!" << endl;
+					//				x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
+					//			}
+					//		}
+					//		else {
+					//			for (int i = 0; i < N; i++) {
+					//				x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
+					//				x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
+					//			}
+					//		}
+					//		// PASSA OS VISITADOS PARA OS REALIZADOS
+					//		if (el == 0) { // DEVE ADICIONAR OS REALIZADOS SOMENTE UMA VEZ
+					//			pedidos_realizados.push_back(elemento_visitado);
+					//		}
+					//	}
+					//}
+					//cout << "PEDIDOS REALIZADOS = [";
+					//for (int kk = 0; kk < pedidos_realizados.size(); kk++) {
+					//	cout << pedidos_realizados[kk] << ", ";
+					//}
+					//cout << "]" << endl;
+					//// ZERA A LISTA DE VISITADOS
+					//visitado.clear();
+					//auxvisitar.push_back(0); // RETORNA AO DEPOSITO
 				}
 				for (int i = 0; i < auxvisitar.size(); i++) {
 					if (auxvisitar[i] != 0) {
