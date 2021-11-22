@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				char* char_arr;
-				string name("x_" + to_string(i) + "_" + to_string(j));
+				string name("x[" + to_string(i) + "][" + to_string(j) + "]");
 				char_arr = &name[0];
 				x[i][j].setName(char_arr);
 				if (i == j) {
@@ -135,46 +135,45 @@ int main(int argc, char** argv) {
 		modelo.add(IloMinimize(env, fo));
 		fo.end();
 		//restricoes
-		//capacidade
-		/*for (int i = 0; i < N; i++) {
-			IloExpr restCapacity(env);
-			for (int j = 0; j < N; j++) {
-				if (i != j) {
-					restCapacity += p[i] * x[i][j];
-				}
-			}
-			modelo.add(restCapacity <= Q);
-			restCapacity.end();
-		}*/
 		//deposito
 		//chegada e saida
+		IloConstraintArray cons_array_chegada(env);
 		for (int j = 1; j < N; j++) {
-			IloExpr restChegada(env);
+			IloExpr restChegada(env); 
+			char* namevar;
+			string name("chegadaNoCliente[" + to_string(j)+"]");
+			namevar = &name[0];
 			for (int i = 0; i < N; i++) {
 				if (i != j) {
 					restChegada += x[i][j];
 				}
 			}
-			modelo.add(restChegada == 1);
+			IloConstraint consRestChegada = (restChegada == 1);
+			consRestChegada.setName(namevar);
+			modelo.add(consRestChegada);
+			cons_array_chegada.add(consRestChegada);
 			restChegada.end();
 		}
+		IloConstraintArray cons_array_saida(env);
 		for (int i = 1; i < N; i++) {
 			IloExpr restSaida(env);
 			char* namevar;
-			string name("saidaDoCliente_" + to_string(i));
+			string name("saidaDoCliente[" + to_string(i) + "]");
 			namevar = &name[0];
-			x[i][j].setName(namevar);
-			restSaida.setName(namevar);
 			for (int j = 0; j < N; j++) {
 				if (j != i) {
 					restSaida += x[i][j];
 				}
 			}
-			modelo.add(restSaida == 1);
+			IloConstraint consRestSaida = (restSaida == 1);
+			consRestSaida.setName(namevar);
+			modelo.add(consRestSaida);
+			cons_array_saida.add(consRestSaida);
 			restSaida.end();
 		}
 		IloExpr depCli(env);
 		IloExpr cliDep(env);
+		IloConstraintArray cons_deposit(env);
 		int qntMinVei = 0;		
 		for (int i = 1; i < N; i++) {
 			depCli += x[0][i];
@@ -183,28 +182,40 @@ int main(int argc, char** argv) {
 		}
 		qntMinVei = qntMinVei / Q + 1;
 		//cout << "Armazenamento =" << qntMinVei << endl;
-		modelo.add(depCli >= qntMinVei);
-		modelo.add(cliDep == 0);
+		IloConstraint depositToClient = (depCli >= qntMinVei); 
+		depositToClient.setName("saida_Deposito");
+		IloConstraint clienToDeposit = (cliDep >= qntMinVei);
+		clienToDeposit.setName("retorno_Deposito");
+		IloConstraint inOut = (cliDep == depCli);
+		modelo.add(inOut);
+		modelo.add(depositToClient);
+		modelo.add(clienToDeposit);
+		cons_deposit.add(depositToClient);
+		cons_deposit.add(clienToDeposit);
+		cons_deposit.add(inOut);
 		//modelo.add(depCli == cliDep);
 		depCli.end();
 		cliDep.end();
+		inOut.end();
 		//eliminacao1
+		IloConstraintArray cons_MTZ(env);
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				if (i != j) {
-					if (i == 0) {
-						modelo.add(u[j] >= p[j] - Q * (1 - x[i][j]));
-					}
-					else {
-						modelo.add(u[j] >= u[i] + p[j] - Q * (1 - x[i][j]));
-					}
+					IloConstraint mtz = (u[i] >= u[j] + p[i] - Q * (1 - x[i][j]));
+					char* char_arr;
+					string name("MTZ:GETOUT_" + to_string(i) + "__" + to_string(j));
+					char_arr = &name[0];
+					mtz.setName(char_arr);
+					cons_MTZ.add(mtz);
+					modelo.add(mtz);
 				}
 			}
 		}
 		//eliminacao2
 		for (int i = 0; i < N; i++) {
 			char* char_arr;
-			string name("u_" + to_string(i));
+			string name("u[" + to_string(i) + "]");
 			char_arr = &name[0];
 			u[i].setName(char_arr);
 			if (i == 0) {
@@ -258,7 +269,7 @@ int main(int argc, char** argv) {
  		visitar.push_back(0);
 		//visitado.push_back(0);
 		int tempo = 9;
-		for (int t = 0; pedidos_realizados.size() < N-1; t++) {
+		for (int t = 0; pedidos_realizados.size() < N; t++) {
 			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
 			cout << "VISITADO[";
@@ -319,7 +330,7 @@ int main(int argc, char** argv) {
 				//cout << "extract 2" << endl;
 				//Fixa a parte inteira da solução
 				for (int check = 0; check < visitar.size(); check++) {
-					for (int i = 0; i < N; i++) {
+					for (int i = 1; i < N; i++) {
 						//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
 						if (sol[visitar[check]][i] >= 0.8) {
 							cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
@@ -364,44 +375,46 @@ int main(int argc, char** argv) {
 
 				// CASO NAO TENHA MAIS NINGUEM PARA VISITAR (AUXVISITAR == 0) (O AUXVISITAR VIRA O VISITAR)
 				if (auxvisitar.size() == 0) {
-					modelo.remove
+
+					LOOPINFINITO = true;
 					// FIXAR TODOS OS PEDIDOS VISITADOS EM 0 EXCETO OS DEPOSITOS
-					//PRIMEIRAITERACAO = false;
-					//for (int el = 0; el < N; el++) {
-					//	for (int visitei = 0; visitei < visitado.size(); visitei++) {
-					//		// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
-					//		int elemento_visitado = visitado[visitei];
-					//		if (el != elemento_visitado) { 
-					//			int elemento_nao_visitado = el;
-					//			// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
-					//			if (elemento_nao_visitado == 0) {
-					//				x[0][0].setBounds(0, 0);
-					//			}
-					//			else {
-					//				cout << "x[0][" << elemento_nao_visitado << "] = " << elemento_nao_visitado << "!!!!" << endl;
-					//				x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
-					//			}
-					//		}
-					//		else {
-					//			for (int i = 0; i < N; i++) {
-					//				x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
-					//				x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
-					//			}
-					//		}
-					//		// PASSA OS VISITADOS PARA OS REALIZADOS
-					//		if (el == 0) { // DEVE ADICIONAR OS REALIZADOS SOMENTE UMA VEZ
-					//			pedidos_realizados.push_back(elemento_visitado);
-					//		}
-					//	}
-					//}
-					//cout << "PEDIDOS REALIZADOS = [";
-					//for (int kk = 0; kk < pedidos_realizados.size(); kk++) {
-					//	cout << pedidos_realizados[kk] << ", ";
-					//}
-					//cout << "]" << endl;
-					//// ZERA A LISTA DE VISITADOS
-					//visitado.clear();
-					//auxvisitar.push_back(0); // RETORNA AO DEPOSITO
+					PRIMEIRAITERACAO = false;
+					for (int el = 0; el < N; el++) {
+						for (int visitei = 0; visitei < visitado.size(); visitei++) {
+							// EXCETO OS VISITADOS QUE DEVEM FICAR FIXOS EM 0 (j == 0)
+							int elemento_visitado = visitado[visitei];
+							if (el != elemento_visitado) { 
+								//int elemento_nao_visitado = el;
+								//// NAS SAIDAS DOS DEPOSITOS FIXAR EM 0 OS VISITADOS E O RESTANTE INTEIRO
+								//if (elemento_nao_visitado == 0) {
+								//	x[0][0].setBounds(0, 0);
+								//}
+								//else {
+								//	cout << "x[0][" << elemento_nao_visitado << "] = " << elemento_nao_visitado << "!!!!" << endl;
+								//	x[0][elemento_nao_visitado].setBounds(0, 1); // TORNA INTEIRO SE NAO FOI VISITADO
+								//}
+							}
+							else {
+								for (int i = 0; i < N; i++) {
+									x[i][elemento_visitado].setBounds(0, 0); // ZERANDO COLUNA
+									x[elemento_visitado][i].setBounds(0, 0); // ZERANDO LINHA
+									cout << "x["<< i << "][" << elemento_visitado << "] = " << x[i][elemento_visitado] << "!!!!" << endl;
+								}
+							}
+							// PASSA OS VISITADOS PARA OS REALIZADOS
+							if (el == 0) { // DEVE ADICIONAR OS REALIZADOS SOMENTE UMA VEZ
+								pedidos_realizados.push_back(elemento_visitado);
+							}
+						}
+					}
+					cout << "PEDIDOS REALIZADOS = [";
+					for (int kk = 0; kk < pedidos_realizados.size(); kk++) {
+						cout << pedidos_realizados[kk] << ", ";
+					}
+					cout << "]" << endl;
+					// ZERA A LISTA DE VISITADOS
+					visitado.clear();
+					auxvisitar.push_back(0); // RETORNA AO DEPOSITO
 				}
 				for (int i = 0; i < auxvisitar.size(); i++) {
 					if (auxvisitar[i] != 0) {
@@ -418,6 +431,7 @@ int main(int argc, char** argv) {
 				}
 				//if (visitado.size() < N - 1) {
 				LOOPINFINITO = true;
+				/*modelo.remove*/
 				for (int naovisitei = 1; naovisitei < N; naovisitei++) {
 					bool notvisit = true;
 					for (int i = 0; i < visitado.size(); i++) {
@@ -431,7 +445,7 @@ int main(int argc, char** argv) {
 						visitar.push_back(naovisitei);
 					}
 				}
-				if (visitado.size() == N - 1) {
+				if (visitado.size() == (N-1)) {
 					for (int i = 0; i < visitado.size(); i++) {
 						pedidos_realizados.push_back(visitado[i]);
 					}
