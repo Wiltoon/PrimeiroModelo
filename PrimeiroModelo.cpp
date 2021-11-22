@@ -45,8 +45,8 @@ struct SaidaEsperada {
 };
 
 int NUMERO_PEDIDOS = 11;
-int TIME_MAX = 300;
-int SOMADOR_TIME = 100;
+int TIME_MAX = 60;
+int SOMADOR_TIME = 3;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
 int NUMERO_DE_VEICULOS = 25;
@@ -97,6 +97,10 @@ int main(int argc, char** argv) {
 		}
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
+				char* char_arr;
+				string name("x_" + to_string(i) + "_" + to_string(j));
+				char_arr = &name[0];
+				x[i][j].setName(char_arr);
 				if (i == j) {
 					d[i][j] = 999999;
 					x[i][j].setBounds(0, 0);
@@ -111,6 +115,7 @@ int main(int argc, char** argv) {
 		}
 
 		IloNumVarArray u(env, N, 0, IloInfinity);							// Variavel auxiliar para eliminicao de rota
+		
 
 		CVRP vars;
 		vars.d = d;
@@ -131,7 +136,7 @@ int main(int argc, char** argv) {
 		fo.end();
 		//restricoes
 		//capacidade
-		for (int i = 0; i < N; i++) {
+		/*for (int i = 0; i < N; i++) {
 			IloExpr restCapacity(env);
 			for (int j = 0; j < N; j++) {
 				if (i != j) {
@@ -140,7 +145,7 @@ int main(int argc, char** argv) {
 			}
 			modelo.add(restCapacity <= Q);
 			restCapacity.end();
-		}
+		}*/
 		//deposito
 		//chegada e saida
 		for (int j = 1; j < N; j++) {
@@ -182,13 +187,22 @@ int main(int argc, char** argv) {
 		for (int i = 0; i < N; i++) {
 			for (int j = 0; j < N; j++) {
 				if (i != j) {
-					modelo.add(u[i] >= u[j] + p[j] - Q * (1 - x[i][j]));
+					modelo.add(u[j] >= u[i] + p[j] - Q * (1 - x[i][j]));
 				}
 			}
 		}
 		//eliminacao2
-		for (int i = 1; i < N; i++) {
-			modelo.add(u[i] >= p[i]);
+		for (int i = 0; i < N; i++) {
+			char* char_arr;
+			string name("u_" + to_string(i));
+			char_arr = &name[0];
+			u[i].setName(char_arr);
+			if (i == 0) {
+				modelo.add(u[i] >= 0);
+			}
+			else {
+				modelo.add(u[i] >= p[i]);
+			}
 			modelo.add(u[i] <= Q);
 		}
 
@@ -216,22 +230,25 @@ int main(int argc, char** argv) {
 		}
 
 		IloCplex cplex(modelo);
-		cplex.setOut(env.getNullStream());
+		//cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
 		IloArray <IloNumArray> sol(env, N);
 		for (int i = 0; i < N; i++) {
 			sol[i] = IloNumArray(env, N);
 		}
+
+		IloNumArray uSol(env, N);
 		//Relax-and-Fix por períodos
 		bool PRIMEIRAITERACAO = true;
+		bool LOOPINFINITO = false;
 		vector<int> visitar;
 		vector<int> visitado;
 		vector<int> pedidos_realizados;
  		visitar.push_back(0);
 		//visitado.push_back(0);
 		int tempo = 9;
-		for (int t = 0; pedidos_realizados.size() < N; t++) {
+		for (int t = 0; pedidos_realizados.size() < N-1; t++) {
 			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
 			vector<int> auxvisitar;
 			cout << "VISITADO[";
@@ -244,7 +261,14 @@ int main(int argc, char** argv) {
 				cout << visitar[i] << ", ";
 			}
 			cout << "]" << endl;
-
+			cout << "x = [" << endl;
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N; j++) {
+					printf("%.2lf \t", sol[i][j]);
+				}
+				cout << endl;
+			}
+			cout << "]" << endl;
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
 			if (visitado.size() >= N - 2) {
@@ -281,7 +305,16 @@ int main(int argc, char** argv) {
 				}
 			}
 			cplex.setParam(IloCplex::TiLim, tempo);
+			cplex.extract(modelo);
+			if (!LOOPINFINITO) {
+				char* outputer;
+				string saida("saida_" + to_string(t)+ ".lp");
+				outputer = &saida[0];
+				cplex.exportModel(outputer);
+			}
+			
 			IloBool result = cplex.solve();
+
 			if (result) {
 				objFO = cplex.getObjValue();
 				//cout << "result = " << objFO << endl;
@@ -289,14 +322,16 @@ int main(int argc, char** argv) {
 				for (int i = 0; i < visitar.size(); i++) {
 					cplex.getValues(x[visitar[i]], sol[visitar[i]]);
 				}
+				cplex.getValues(u, uSol);
 				cout << "Partial Result:" << endl;
 				for (int i = 0; i < N; i++) {
 					for (int j = 0; j < N; j++) {
 						if (sol[i][j] >= 0.8) {
-							cout << i << "-->" << j << "\t\tdistance = " << d[i][j] << endl;
+							cout << i << "-->" << j << "\t\tdistance = " << d[i][j] << "\t\tu["<< i <<"] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j] << endl;
 						}
 					}
 				}
+				
 				//cout << "extract 2" << endl;
 				//Fixa a parte inteira da solução
 				for (int check = 0; check < visitar.size(); check++) {
@@ -305,15 +340,18 @@ int main(int argc, char** argv) {
 						if (sol[visitar[check]][i] >= 0.8) {
 							cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
 							// FIXA VALOR DE X[i][j] ja resolvido
-							for (int row = 0; row < N; row++) {
+							x[visitar[check]][i].setBounds(1, 1);
+							for (int row = 0; row < N; row++) {//PERCORRER A COLUNA
 								if (row != visitar[check]) {
 									x[row][i].setBounds(0, 0);
 								}
-								else {
-									x[visitar[check]][i].setBounds(1, 1);
-									x[i][visitar[check]].setBounds(0, 0);
+							}
+							for (int col = 0; col < N; col++) {//PERCORRENDO A LINHA
+								if (col != i) {
+									x[visitar[check]][col].setBounds(0, 0);
 								}
 							}
+							x[i][visitar[check]].setBounds(0, 0);//ZERANDO O SIMETRICO
 							if (i != 0) {
 								auxvisitar.push_back(i);
 							}
@@ -325,14 +363,12 @@ int main(int argc, char** argv) {
 								}
 							}
 							if (!encontrado) {
-								if (i != 0) {
-									visitado.push_back(i);
-								}
+								visitado.push_back(i);
 							}
 						}
-						else {
-							x[check][i].setBounds(0, 0);
-						}
+						//else { // CONDIÇAO PRA ESSE AQUI ACONTECER
+						//	x[check][i].setBounds(0, 0);
+						//}
 					}
 				}
 				// Apagar a memoria do visitar e colocar o valor do auxvisitar
@@ -388,12 +424,30 @@ int main(int argc, char** argv) {
 					cout << "Aumentar tempo do solve " << tempo << "+" << SOMADOR_TIME << endl;
 					tempo = tempo + SOMADOR_TIME;
 				}
-				for (int i = 0; i < visitado.size(); i++) {
-					for (int j = 0; j < N; j++) {
-						x[visitado[i]][j].setBounds(0, 1);
-						x[j][visitado[i]].setBounds(0, 1);
+				//if (visitado.size() < N - 1) {
+				LOOPINFINITO = true;
+				for (int naovisitei = 1; naovisitei < N; naovisitei++) {
+					bool notvisit = true;
+					for (int i = 0; i < visitado.size(); i++) {
+						if (visitado[i] == naovisitei) {
+							notvisit = false;
+							break;
+						}
+					}
+					if (notvisit) {
+						visitado.push_back(naovisitei);
+						visitar.push_back(naovisitei);
 					}
 				}
+				if (visitado.size() == N - 1) {
+					for (int i = 0; i < visitado.size(); i++) {
+						pedidos_realizados.push_back(visitado[i]);
+					}
+				}
+				/*
+				else {
+					LOOPINFINITO = true;
+				}*/
 			}
 		}
 		cout << "Resultado Final" << objFO << endl;
