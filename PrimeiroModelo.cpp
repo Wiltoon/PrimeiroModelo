@@ -270,7 +270,8 @@ int main(int argc, char** argv) {
 		//visitado.push_back(0);
 		int tempo = 9;
 		for (int t = 0; pedidos_realizados.size() < N; t++) {
-			//cout << "TAMANHO ATUAL DOS VISITADOS = " << visitado.size() << endl; 
+			//PRINTER 
+			/*PRINT*/
 			vector<int> auxvisitar;
 			cout << "VISITADO[";
 			for (int i = 0; i < visitado.size(); i++) {
@@ -330,11 +331,10 @@ int main(int argc, char** argv) {
 				//cout << "extract 2" << endl;
 				//Fixa a parte inteira da solução
 				for (int check = 0; check < visitar.size(); check++) {
-					for (int i = 1; i < N; i++) {
-						//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
+					for (int i = 0; i < N; i++) {
 						if (sol[visitar[check]][i] >= 0.8) {
 							cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
-							// FIXA VALOR DE X[i][j] ja resolvido
+							// FIXA VALOR DE X[i][j] ja resolvido TALVEZ ANALISAR QUANDO PASSA O DEPOSITO POR AQUI!
 							x[visitar[check]][i].setBounds(1, 1);
 							for (int row = 0; row < N; row++) {//PERCORRER A COLUNA
 								if (row != visitar[check]) {
@@ -352,9 +352,14 @@ int main(int argc, char** argv) {
 							}
 							bool encontrado = false;
 							for (int it = 0; it < visitado.size(); it++) {
-								//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
 								if (visitado[it] == i) {
 									encontrado = true;
+								}
+							}
+							if (i == 0) {
+								x[visitar[check]][i].setBounds(0, 0);
+								for (int dest = 1; dest < visitar.size(); dest++) {
+									x[visitar[check]][dest].setBounds(0, 1);
 								}
 							}
 							if (!encontrado) {
