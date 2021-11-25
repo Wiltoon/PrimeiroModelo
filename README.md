@@ -49,7 +49,7 @@ Neste caso a ideia da heurística é particionar o problema através da variáve
 - Primeiro todas as variáveis de **x** estarão relaxadas
 - A primeira iteração a ser resolvida de forma binária é encontrar o primeiro destino partindo do depósito, ou seja, a relaxação da primeira linha da variável **x** voltará a se tornar binária e o restante continuará relaxado valores entre 0 e 1.
 - Na segunda iteração em diante todos os **clientes** visitados estarão fixados em 0, pois não se deve visitar um cliente mais de uma única vez, e a relaxação dos clientes visitados na iteração anterior serão removidas e voltarão a ser binários, mantendo a relaxação nas variáveis restantes.
-- No final do processo a ideia é que todos os clientes sejam atendidos.  
+- No final do processo a ideia é que todos os clientes sejam atendidos, sem que retorne ao depósito
 ![rfnoreturn](https://user-images.githubusercontent.com/14852213/143495682-dc9e4926-c865-4055-a3b7-11b96e11479a.gif)
 
 # Contato
