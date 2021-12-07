@@ -75,6 +75,7 @@ int main(int argc, char** argv) {
 	IloEnv env; //declara o ambiente e dá o nome de "env"
 	try {
 		int N = NUMERO_PEDIDOS;
+		int K = NUMERO_DE_VEICULOS;
 		IloModel modelo(env); //declara o modelo e dá o nome de "modelo"
 
 		Pedido* pedidos = (Pedido*)malloc(sizeof(Pedido) * NUMERO_PEDIDOS);
@@ -86,50 +87,73 @@ int main(int argc, char** argv) {
 		}
 		IloNum Q = CAPACIDADE_PESO_DOS_VEICULOS;
 
-		IloArray <IloBoolVarArray> x(env, N);				// Rotas atribuidas aos arcos (i,j)
-		for (int i = 0; i < N; i++) {
-			x[i] = IloBoolVarArray(env, N);
+		IloArray <IloArray <IloBoolVarArray>> x(env, K);
+		for (int k = 0; k < K; k++) {
+			x[k] = IloArray <IloBoolVarArray>(env, N);				// Rotas atribuidas aos arcos (i,j)
+			for (int i = 0; i < N; i++) {
+				x[k][i] = IloBoolVarArray(env, N);
+			}
 		}
 
 		IloArray <IloNumArray> d(env, N);					// Matrizes de distancia e tempo entre pedido i ate j
 		for (int i = 0; i < N; i++) {
 			d[i] = IloNumArray(env, N);
 		}
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				char* char_arr;
-				string name("x[" + to_string(i) + "][" + to_string(j) + "]");
-				char_arr = &name[0];
-				x[i][j].setName(char_arr);
-				if (i == j) {
-					d[i][j] = 999999;
-					x[i][j].setBounds(0, 0);
-				}
-				else {
-					d[i][j] = distanciaEuclidiana(pedidos[i], pedidos[j]);
-					x[i][j].setBounds(0, 1);
-				}
-				//cout << d[i][j] << " ";
-			}
-			//cout << endl;
-		}
 		IloBoolVarArray y(env, N);
-		IloNumVarArray u(env, N, 0, IloInfinity);							// Variavel auxiliar para eliminicao de rota
-		
+		IloArray<IloBoolVarArray> w(env, K); // DESTINOS (index j)
+		for (int k = 0; k < K; k++) {
+			w[k] = IloBoolVarArray(env, N);
+		}
 
-		CVRP vars;
-		vars.d = d;
-		vars.p = p;
-		vars.Q = Q;
-		vars.u = u;
-		vars.x = x;
+		IloArray<IloBoolVarArray> z(env, K); // ORIGENS (index i)
+		for (int k = 0; k < K; k++) {
+			z[k] = IloBoolVarArray(env, N);
+		}
+
+		IloArray<IloNumVarArray> u(env, K);
+		for (int k = 0; k < K; k++) {
+			u[k] = IloNumVarArray(env, N, 0, CAPACIDADE_PESO_DOS_VEICULOS);							// Variavel auxiliar para eliminicao de rota
+		}
+
+		for (int k = 0; k < K; k++) {
+			for (int i = 0; i < N; i++) {
+				char* char_z;
+				string name("z_" + to_string(k) + "_" + to_string(i));
+				char_z = &name[0];
+				z[k][i].setName(char_z);
+				for (int j = 0; j < N; j++) {
+					char* char_arr;
+					string name("x_" + to_string(k) + "_" + to_string(i) + "_" + to_string(j));
+					char_arr = &name[0];
+					x[k][i][j].setName(char_arr);
+					if (i == 0) {
+						char* char_w;
+						string name("z_" + to_string(k) + "_" + to_string(j));
+						char_w = &name[0];
+						w[k][j].setName(char_w);
+					}
+					if (i == j) {
+						d[i][j] = 999999;
+						x[k][i][j].setBounds(0, 0);
+					}
+					else {
+						d[i][j] = distanciaEuclidiana(pedidos[i], pedidos[j]);
+						x[k][i][j].setBounds(0, 1);
+					}
+					//cout << d[i][j] << " ";
+				}
+				//cout << endl;
+			}
+		}
 
 		//criacao do modelo
 		//funcao objetivo 
 		IloExpr fo(env);
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				fo += d[i][j] * x[i][j];
+		for (int k = 0; k < K; k++) {
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N; j++) {
+					fo += d[i][j] * x[k][i][j];
+				}
 			}
 		}
 		modelo.add(IloMinimize(env, fo));
@@ -137,55 +161,103 @@ int main(int argc, char** argv) {
 		//restricoes
 		//deposito
 		//chegada e saida
-		IloConstraintArray cons_array_chegada(env);
+		IloConstraintArray cons_destino(env);
 		for (int j = 1; j < N; j++) {
-			IloExpr restChegada(env); 
+			IloExpr restDest(env);
 			char* namevar;
-			string name("chegadaNoCliente[" + to_string(j)+"]");
+			string name("alguemChegaAoCliente[" + to_string(j) + "]");
 			namevar = &name[0];
-			for (int i = 0; i < N; i++) {
-				if (i != j) {
-					restChegada += x[i][j];
-				}
+			for (int k = 0; k < K; k++) {
+				restDest += w[k][j];
 			}
-			IloConstraint consRestChegada = (restChegada == 1);
-			consRestChegada.setName(namevar);
-			modelo.add(consRestChegada);
-			cons_array_chegada.add(consRestChegada);
-			restChegada.end();
+			IloConstraint consRestDest = (restDest == 1);
+			consRestDest.setName(namevar);
+			modelo.add(consRestDest);
+			cons_destino.add(consRestDest);
+			restDest.end();
+		}
+
+		IloConstraintArray cons_chegada(env);
+		for (int i = 1; i < N; i++) {
+			IloExpr restOrig(env);
+			char* namevar;
+			string name("alguemSaiDoCliente[" + to_string(i) + "]");
+			namevar = &name[0];
+			for (int k = 0; k < K; k++) {
+				restOrig += z[k][i];
+			}
+			IloConstraint consRestOrigin = (restOrig + y[i] == 1);
+			consRestOrigin.setName(namevar);
+			modelo.add(consRestOrigin);
+			cons_chegada.add(consRestOrigin);
+			restOrig.end();
+		}
+
+		IloConstraintArray cons_array_chegada(env);
+		for (int k = 0; k < K; k++) {
+			for (int j = 1; j < N; j++) {
+				IloExpr restChegada(env); 
+				char* namevar;
+				string name("chegadaNoCliente_" + to_string(j) + "_peloVehicle_" + to_string(k));
+				namevar = &name[0];
+				for (int i = 0; i < N; i++) {
+					if (i != j) {
+						restChegada += x[k][i][j];
+					}
+				}
+				IloConstraint consRestChegada = (restChegada == w[k][j]);
+				consRestChegada.setName(namevar);
+				modelo.add(consRestChegada);
+				cons_array_chegada.add(consRestChegada);
+				restChegada.end();
+			}
 		}
 		IloConstraintArray cons_array_saida(env);
-		for (int i = 1; i < N; i++) {
-			IloExpr restSaida(env);
-			char* namevar;
-			string name("saidaDoCliente[" + to_string(i) + "]");
-			namevar = &name[0];
-			for (int j = 0; j < N; j++) {
-				if (j != i) {
-					restSaida += x[i][j];
+		for (int k = 0; k < K; k++) {
+			for (int i = 1; i < N; i++) {
+				IloExpr restSaida(env);
+				char* namevar;
+				string name("saidaDoCliente_" + to_string(i) + "_peloVehicle_" + to_string(k));
+				namevar = &name[0];
+				for (int j = 0; j < N; j++) {
+					if (j != i) {
+						restSaida += x[k][i][j];
+					}
 				}
+				IloConstraint consRestSaida = (restSaida == z[k][i]);
+				consRestSaida.setName(namevar);
+				modelo.add(consRestSaida);
+				cons_array_saida.add(consRestSaida);
+				restSaida.end();
 			}
-			IloConstraint consRestSaida = (restSaida + y[i] == 1);
-			consRestSaida.setName(namevar);
-			modelo.add(consRestSaida);
-			cons_array_saida.add(consRestSaida);
-			restSaida.end();
 		}
 		IloExpr depCli(env);
+		IloExpr depClient(env);
 		IloExpr cliDep(env);
+		IloExpr clientDep(env);
 		IloConstraintArray cons_deposit(env);
-		int qntMinVei = 0;		
+		int qntMinVei = 0;	
+		for (int k = 0; k < K; k++) {
+			clientDep += w[k][0];
+			depClient += z[k][0];
+			for (int i = 1; i < N; i++) {
+				depCli += x[k][0][i];
+				cliDep += x[k][i][0];
+			}
+		}
 		for (int i = 1; i < N; i++) {
-			depCli += x[0][i];
-			cliDep += x[i][0];
 			qntMinVei += p[i];
 		}
 		qntMinVei = qntMinVei / Q + 1;
 		//cout << "Armazenamento =" << qntMinVei << endl;
-		IloConstraint depositToClient = (depCli == qntMinVei); 
+		IloConstraint depositToClient = (depCli == qntMinVei);
+		IloConstraint depositToClient2 = (depClient == qntMinVei);
 		depositToClient.setName("saida_Deposito");
+		depositToClient2.setName("saida_Deposito2");
 		IloConstraint clienToDeposit = (cliDep == 0);
+		IloConstraint clienToDeposit2 = (clientDep == 0);
 		clienToDeposit.setName("retorno_Deposito");
+		clienToDeposit2.setName("retorno_Deposito2");
 		/*IloConstraint inOut = (cliDep == depCli);
 		cons_deposit.add(inOut);
 		inOut.end();
@@ -208,59 +280,62 @@ int main(int argc, char** argv) {
 			sumY += y[j];
 		}
 		IloConstraint lastNode = (sumY == qntMinVei);
-		lastNode.setName("Ultimo_no");
+		lastNode.setName("UltimoNo");
 		modelo.add(lastNode);
 		sumY.end();
 		//eliminacao1
 		IloConstraintArray cons_MTZ(env);
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				if (i != j) {
-					IloConstraint mtz = (u[i] >= u[j] + p[i] - Q * (1 - x[i][j]));
-					char* char_arr;
-					string name("MTZ:GETOUT_" + to_string(i) + "__" + to_string(j));
-					char_arr = &name[0];
-					mtz.setName(char_arr);
-					cons_MTZ.add(mtz);
-					modelo.add(mtz);
+		for (int k = 0; k < K; k++) {
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N; j++) {
+					if (i != j) {
+						IloConstraint mtz = (u[k][i] >= u[k][j] + p[i] - Q * (1 - x[k][i][j]));
+						char* char_arr;
+						string name("GETOUT_" + to_string(k) + "_"+ to_string(i) +"_" + to_string(j));
+						char_arr = &name[0];
+						mtz.setName(char_arr);
+						cons_MTZ.add(mtz);
+						modelo.add(mtz);
+					}
 				}
 			}
 		}
 		///eliminacao2
-		for (int i = 0; i < N; i++) {
-			char* char_arr;
-			string name("u[" + to_string(i) + "]");
-			char_arr = &name[0];
-			u[i].setName(char_arr);
-			if (i == 0) {
-				modelo.add(u[i] >= 0);
-			}
-			else {
-				modelo.add(u[i] >= p[i]);
-			}
-			modelo.add(u[i] <= Q);
-		}
-
-		SaidaEsperada out;
-		out.env = env;
-		out.modelo = modelo;
-		out.vars = vars;
-		//
-
-		IloArray<IloExtractableArray> relaxa(env, N);
-		for (int i = 0; i < N; i++) {
-			relaxa[i] = IloExtractableArray(env, N);
-		}
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				if (i == j) {
-					x[i][j].setBounds(0, 0);
+		for (int k = 0; k < K; k++) {
+			for (int i = 0; i < N; i++) {
+				char* char_arr;
+				string name("u_" + to_string(k) + "_" + to_string(i));
+				char_arr = &name[0];
+				u[k][i].setName(char_arr);
+				if (i == 0) {
+					modelo.add(u[k][i] >= 0);
 				}
 				else {
-					x[i][j].setBounds(0, 1);
+					modelo.add(u[k][i] >= p[i]);
 				}
-				relaxa[i][j] = IloConversion(env, x[i][j], ILOFLOAT);
-				modelo.add(relaxa[i][j]);
+				modelo.add(u[k][i] <= Q);
+			}
+		}
+
+		IloArray <IloArray<IloExtractableArray>> relaxa(env, K);
+		for (int k = 0; k < K; k++) {
+			relaxa[k] = IloArray<IloExtractableArray>(env, N);
+			for (int i = 0; i < N; i++) {
+				relaxa[k][i] = IloExtractableArray(env, N);
+			}
+		}
+		for (int k = 0; k < K; k++) {
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N; j++) {
+					if (i == j) {
+						x[k][i][j].setBounds(0, 0);
+					}
+					else {
+						x[k][i][j].setBounds(0, 1);
+					}
+					relaxa[k][i][j] = IloConversion(env, x[k][i][j], ILOFLOAT);
+					modelo.add(relaxa[k][i][j]);
+				}
 			}
 		}
 
@@ -268,12 +343,15 @@ int main(int argc, char** argv) {
 		//cplex.setOut(env.getNullStream());
 		IloNum objFO = IloInfinity;
 		//Salvar solução
-		IloArray <IloNumArray> sol(env, N);
-		for (int i = 0; i < N; i++) {
-			sol[i] = IloNumArray(env, N);
+		IloArray <IloArray <IloNumArray>> sol(env, K);
+		for (int k = 0; k < K; k++) {
+			sol[k] = IloArray <IloNumArray>(env, N);
+			for (int i = 0; i < N; i++) {
+				sol[k][i] = IloNumArray(env, N);
+			}
 		}
 
-		IloNumArray uSol(env, N);
+		//IloNumArray uSol(env, N);
 		//Relax-and-Fix por períodos
 		bool PRIMEIRAITERACAO = true;
 		bool LOOPINFINITO = false;
@@ -291,7 +369,8 @@ int main(int argc, char** argv) {
 				cout << visitado[i] << ", ";
 			}
 			cout << "]" << endl;
-			*/cout << "VISITAR[";
+			*/
+			cout << "VISITAR[";
 			for (int i = 0; i < visitar.size(); i++){
 				cout << visitar[i] << ", ";
 			}
@@ -307,9 +386,11 @@ int main(int argc, char** argv) {
 			cout << "ITERADOR" << t << "\t" << objFO << endl;
 			//Remove as relaxões que serão resolvidas em binário
 			if (PRIMEIRAITERACAO) {
-				for (int i = 0; i < visitar.size(); i++) {
-					for (int j = 0; j < N; j++) {
-						modelo.remove(relaxa[visitar[i]][j]);
+				for (int k = 0; k < K; k++) {
+					for (int i = 0; i < visitar.size(); i++) {
+						for (int j = 0; j < N; j++) {
+							modelo.remove(relaxa[k][visitar[i]][j]);
+						}
 					}
 				}
 			}
@@ -328,15 +409,19 @@ int main(int argc, char** argv) {
 				objFO = cplex.getObjValue();
 				//cout << "result = " << objFO << endl;
 				// Salva a parte inteira da solução
-				for (int i = 0; i < visitar.size(); i++) {
-					cplex.getValues(x[visitar[i]], sol[visitar[i]]);
+				for (int k = 0; k < K; k++) {
+					for (int i = 0; i < visitar.size(); i++) {
+						cplex.getValues(x[k][visitar[i]], sol[k][visitar[i]]);
+					}
 				}
-				cplex.getValues(u, uSol);
+				//cplex.getValues(u, uSol);
 				cout << "Partial Result:" << endl;
-				for (int i = 0; i < N; i++) {
-					for (int j = 0; j < N; j++) {
-						if (sol[i][j] >= 0.8) {
-							cout << i << "-->" << j << "\t\tdistance = " << d[i][j] << "\t\tu["<< i <<"] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j] << endl;
+				for (int k = 0; k < K; k++) {
+					for (int i = 0; i < N; i++) {
+						for (int j = 0; j < N; j++) {
+							if (sol[k][i][j] >= 0.8) {
+								cout << i << "-->" << j << "\t\tdistance = " << d[i][j] << endl; //<< "\t\tu[" << i << "] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j]
+							}
 						}
 					}
 				}
@@ -344,42 +429,51 @@ int main(int argc, char** argv) {
 				//cout << "extract 2" << endl;
 				//Fixa a parte inteira da solução
 				for (int check = 0; check < visitar.size(); check++) {
-					for (int i = 1; i < N; i++) {
-						//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
-						if (sol[visitar[check]][i] >= 0.8) {
-							cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[visitar[check]][i] << endl;
-							// FIXA VALOR DE X[i][j] ja resolvido
-							x[visitar[check]][i].setBounds(1, 1);
-							y[i].setBounds(0, 0);
-							for (int row = 0; row < N; row++) {//PERCORRER A COLUNA
-								if (row != visitar[check]) {
-									x[row][i].setBounds(0, 0);
-								}
-							}
-							for (int col = 0; col < N; col++) {//PERCORRENDO A LINHA
-								if (col != i) {
-									if (sol[visitar[check]][col] >= 0.8) {
-										x[visitar[check]][col].setBounds(1, 1);
-									}
-									else {
-										x[visitar[check]][col].setBounds(0, 0);
+					for (int k = 0; k < K; k++) {
+						for (int i = 1; i < N; i++) {
+							//cout << "sol [" << check << "][" << i << ']' << "=" << sol[check][i] << endl;
+							if (sol[k][visitar[check]][i] >= 0.8) {
+								cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[k][visitar[check]][i] << endl;
+								// FIXA VALOR DE X[i][j] ja resolvido
+								x[k][visitar[check]][i].setBounds(1, 1);
+								y[i].setBounds(0, 0);
+								for (int row = 0; row < N; row++) {//PERCORRER A COLUNA
+									if (row != visitar[check]) {
+										x[k][row][i].setBounds(0, 0);
 									}
 								}
-							}
-							x[i][visitar[check]].setBounds(0, 0);//ZERANDO O SIMETRICO
-							if (i != 0) {
-								auxvisitar.push_back(i);
-							}
-							bool encontrado = false;
-							for (int it = 0; it < visitado.size(); it++) {
-								//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
-								if (visitado[it] == i) {
-									encontrado = true;
+								for (int col = 0; col < N; col++) {//PERCORRENDO A LINHA
+									if (col != i) {
+										if (sol[k][visitar[check]][col] >= 0.8) {
+											for (int kar = 0; kar < K; kar++) {
+												if (k == kar) {
+													x[k][visitar[check]][col].setBounds(1, 1);
+												}
+												else {
+													x[kar][visitar[check]][col].setBounds(0, 0);
+												}
+											}
+										}
+										else {
+											x[k][visitar[check]][col].setBounds(0, 0);
+										}
+									}
 								}
-							}
-							if (!encontrado) {
+								x[k][i][visitar[check]].setBounds(0, 0);//ZERANDO O SIMETRICO
 								if (i != 0) {
-									visitado.push_back(i);
+									auxvisitar.push_back(i);
+								}
+								bool encontrado = false;
+								for (int it = 0; it < visitado.size(); it++) {
+									//cout << "VISITADO[" << it << "] = \t" << visitado[it] << endl;
+									if (visitado[it] == i) {
+										encontrado = true;
+									}
+								}
+								if (!encontrado) {
+									if (i != 0) {
+										visitado.push_back(i);
+									}
 								}
 							}
 						}
