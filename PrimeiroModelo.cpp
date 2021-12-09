@@ -420,7 +420,7 @@ int main(int argc, char** argv) {
 					for (int i = 0; i < N; i++) {
 						for (int j = 0; j < N; j++) {
 							if (sol[k][i][j] >= 0.8) {
-								cout << i << "-->" << j << "\t\tdistance = " << d[i][j] << endl; //<< "\t\tu[" << i << "] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j]
+								cout << k << ">: " << i << "-->" << j << "\t\tdistance = " << d[i][j] << endl; //<< "\t\tu[" << i << "] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j]
 							}
 						}
 					}
@@ -437,29 +437,29 @@ int main(int argc, char** argv) {
 								// FIXA VALOR DE X[i][j] ja resolvido
 								x[k][visitar[check]][i].setBounds(1, 1);
 								y[i].setBounds(0, 0);
-								for (int row = 0; row < N; row++) {//PERCORRER A COLUNA
+								for (int row = 0; row < N; row++) {	//PERCORRER A COLUNA
 									if (row != visitar[check]) {
 										x[k][row][i].setBounds(0, 0);
+										for (int kar = 0; kar < K; kar++) { // INUTILIZAR VEICULOS PARA ATENDER OS PEDIDOS DA COLUNA
+											if (k != kar) {
+												x[kar][visitar[check]][i].setBounds(0, 0);
+											}
+										}
 									}
 								}
 								for (int col = 0; col < N; col++) {//PERCORRENDO A LINHA
 									if (col != i) {
-										if (sol[k][visitar[check]][col] >= 0.8) {
-											for (int kar = 0; kar < K; kar++) {
-												if (k == kar) {
-													x[k][visitar[check]][col].setBounds(1, 1);
-												}
-												else {
-													x[kar][visitar[check]][col].setBounds(0, 0);
-												}
+										x[k][visitar[check]][col].setBounds(0, 0);
+										for (int kar = 0; kar < K; kar++) { // INUTILIZAR VEICULOS PARA ATENDER OS PEDIDOS DA LINHA
+											if (k != kar) {
+												x[kar][visitar[check]][col].setBounds(0, 0);
 											}
-										}
-										else {
-											x[k][visitar[check]][col].setBounds(0, 0);
 										}
 									}
 								}
-								x[k][i][visitar[check]].setBounds(0, 0);//ZERANDO O SIMETRICO
+								for (int kar = 0; kar < K; kar++) { // INUTILIZAR VEICULOS PARA ATENDER OS PEDIDOS DOS SIMETRICOS
+									x[kar][i][visitar[check]].setBounds(0, 0);
+								}
 								if (i != 0) {
 									auxvisitar.push_back(i);
 								}
@@ -499,19 +499,6 @@ int main(int argc, char** argv) {
 			}
 		}
 		cout << "Resultado Final" << objFO << endl;
-
-		//cplex.extract(modelo);
-		//cplex.exportModel("saida.lp");
-
-		
-		//if(!cplex.solve()) {
-		//	env.error() << "Não se pode resolver!" << endl;
-		///	throw(-1);
-		//}
-		//env.out() << "Funcao Objetivo = " << cplex.getObjValue() << endl;
-		//env.out() << "Tempo = " << cplex.getTime() << endl;
-		//env.out() << "Natureza da Solucao: " << cplex.getStatus() << endl;
-		//printf("\n\n\n");
 	}
 	catch(IloException& ex) {
 		cerr << "ERRO: " << ex << endl;
