@@ -44,12 +44,12 @@ struct SaidaEsperada {
 	IloEnv env;
 };
 
-int NUMERO_PEDIDOS = 12;
+int NUMERO_PEDIDOS = 101;
 int TIME_MAX = 60;
 int SOMADOR_TIME = 3;
-int CAPACIDADE_PESO_DOS_VEICULOS = 200;
+int CAPACIDADE_PESO_DOS_VEICULOS = 400;
 int CUSTO_DE_VEICULO = 10;
-int NUMERO_DE_VEICULOS = 3;
+int NUMERO_DE_VEICULOS = 12;
 
 void readCsv(Pedido* pedidos);
 void montarDistanciaTempoEntrePedidos(Pedido* pedidos, double** d, double** t);
@@ -90,6 +90,15 @@ int main(int argc, char** argv) {
 		e[0] = 30;
 		e[1] = 10;
 		e[2] = 20;
+		e[3] = 30;
+		e[4] = 10;
+		e[5] = 20;
+		e[6] = 30;
+		e[7] = 10;
+		e[8] = 20;
+		e[9] = 30;
+		e[10] = 10;
+		e[11] = 20;
 
 		IloArray <IloArray <IloBoolVarArray>> x(env, K);
 		for (int k = 0; k < K; k++) {
@@ -132,7 +141,7 @@ int main(int argc, char** argv) {
 					x[k][i][j].setName(char_arr);
 					if (i == 0) {
 						char* char_w;
-						string name("z_" + to_string(k) + "_" + to_string(j));
+						string name("w_" + to_string(k) + "_" + to_string(j));
 						char_w = &name[0];
 						w[k][j].setName(char_w);
 					}
@@ -248,7 +257,7 @@ int main(int argc, char** argv) {
 		}
 		IloConstraintArray cons_array_saida(env);
 		for (int k = 0; k < K; k++) {
-			for (int i = 1; i < N; i++) {
+			for (int i = 0; i < N; i++) {
 				IloExpr restSaida(env);
 				char* namevar;
 				string name("saidaDoCliente_" + to_string(i) + "_peloVehicle_" + to_string(k));
@@ -417,7 +426,10 @@ int main(int argc, char** argv) {
 			}
 		}
 
-		//IloNumArray uSol(env, N);
+		IloArray<IloNumArray> uSol(env, K);
+		for (int k = 0; k < K; k++) {
+			uSol[k] = IloNumArray(env, N);
+		}
 		//Relax-and-Fix por períodos
 		bool PRIMEIRAITERACAO = true;
 		bool LOOPINFINITO = false;
@@ -476,6 +488,7 @@ int main(int argc, char** argv) {
 				//cout << "result = " << objFO << endl;
 				// Salva a parte inteira da solução
 				for (int k = 0; k < K; k++) {
+					cplex.getValues(u[k], uSol[k]);
 					for (int i = 0; i < visitar.size(); i++) {
 						cplex.getValues(x[k][visitar[i]], sol[k][visitar[i]]);
 					}
@@ -486,7 +499,7 @@ int main(int argc, char** argv) {
 					for (int i = 0; i < N; i++) {
 						for (int j = 0; j < N; j++) {
 							if (sol[k][i][j] >= 0.8) {
-								cout << k << ">: " << i << "-->" << j << "\t\tdistance = " << d[i][j] << endl; //<< "\t\tu[" << i << "] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j]
+								cout << k << ">: " << i << "-->" << j << "\t\tdistance = " << d[i][j] << "\t\tu[" << i << "] =" << uSol[k][i] << "\t\tu[" << j << "] =" << uSol[k][j] << endl; //<< "\t\tu[" << i << "] =" << uSol[i] << "\t\tu[" << j << "] =" << uSol[j]
 							}
 						}
 					}
@@ -502,13 +515,29 @@ int main(int argc, char** argv) {
 								cout << "sol [" << visitar[check] << "][" << i << ']' << "=" << sol[k][visitar[check]][i] << endl;
 								// FIXA VALOR DE X[i][j] ja resolvido
 								x[k][visitar[check]][i].setBounds(1, 1);
+								w[k][i].setBounds(1, 1);
+								z[k][visitar[check]].setBounds(1, 1);
 								y[i].setBounds(0, 0);
+								int entrega = i;
+								for (int veiculo = 0; veiculo < K; veiculo++) {
+									char* namevarD;
+									string name("fluxo_veiculo_" + to_string(veiculo) + "_da_entrega_" + to_string(entrega));
+									namevarD = &name[0];
+									IloConstraint consVeiculoUnico = (z[veiculo][entrega] + y[entrega] == w[veiculo][entrega]);
+									consVeiculoUnico.setName(namevarD);
+									modelo.add(consVeiculoUnico);
+								}
 								for (int row = 0; row < N; row++) {	//PERCORRER A COLUNA
 									if (row != visitar[check]) {
 										x[k][row][i].setBounds(0, 0);
 										for (int kar = 0; kar < K; kar++) { // INUTILIZAR VEICULOS PARA ATENDER OS PEDIDOS DA COLUNA
-											if (k != kar) {
-												x[kar][visitar[check]][i].setBounds(0, 0);
+											if (sol[kar][visitar[check]][i] >= 0.8) {
+												x[kar][visitar[check]][i].setBounds(1, 1);
+											}
+											else {
+												if (k != kar) {
+													x[kar][visitar[check]][i].setBounds(0, 0);
+												}
 											}
 										}
 									}
@@ -517,8 +546,13 @@ int main(int argc, char** argv) {
 									if (col != i) {
 										x[k][visitar[check]][col].setBounds(0, 0);
 										for (int kar = 0; kar < K; kar++) { // INUTILIZAR VEICULOS PARA ATENDER OS PEDIDOS DA LINHA
-											if (k != kar) {
-												x[kar][visitar[check]][col].setBounds(0, 0);
+											if (sol[kar][visitar[check]][col] >= 0.8) {
+												x[kar][visitar[check]][col].setBounds(1, 1);
+											}
+											else {
+												if (k != kar) {
+													x[kar][visitar[check]][col].setBounds(0, 0);
+												}
 											}
 										}
 									}
