@@ -49,7 +49,7 @@ int TIME_MAX = 60;
 int SOMADOR_TIME = 3;
 int CAPACIDADE_PESO_DOS_VEICULOS = 200;
 int CUSTO_DE_VEICULO = 10;
-int NUMERO_DE_VEICULOS = 25;
+int NUMERO_DE_VEICULOS = 3;
 
 void readCsv(Pedido* pedidos);
 void montarDistanciaTempoEntrePedidos(Pedido* pedidos, double** d, double** t);
@@ -86,6 +86,10 @@ int main(int argc, char** argv) {
 			p[i] = pedidos[i].demanda;
 		}
 		IloNum Q = CAPACIDADE_PESO_DOS_VEICULOS;
+		IloNumArray e(env, K);
+		e[0] = 30;
+		e[1] = 10;
+		e[2] = 20;
 
 		IloArray <IloArray <IloBoolVarArray>> x(env, K);
 		for (int k = 0; k < K; k++) {
@@ -94,7 +98,7 @@ int main(int argc, char** argv) {
 				x[k][i] = IloBoolVarArray(env, N);
 			}
 		}
-
+		IloBoolVarArray v(env, K);
 		IloArray <IloNumArray> d(env, N);					// Matrizes de distancia e tempo entre pedido i ate j
 		for (int i = 0; i < N; i++) {
 			d[i] = IloNumArray(env, N);
@@ -152,7 +156,7 @@ int main(int argc, char** argv) {
 		for (int k = 0; k < K; k++) {
 			for (int i = 0; i < N; i++) {
 				for (int j = 0; j < N; j++) {
-					fo += d[i][j] * x[k][i][j];
+					fo += d[i][j] * x[k][i][j] + e[k]*v[k];
 				}
 			}
 		}
@@ -176,6 +180,21 @@ int main(int argc, char** argv) {
 			cons_destino.add(consRestDest);
 			restDest.end();
 		}
+		IloConstraintArray cons_destino_veiculo(env);
+		for (int k = 0; k < K; k++) {
+			IloExpr restDestDriver(env);
+			char* namevarDD;
+			string name("veiculo_dest_" + to_string(k));
+			namevarDD = &name[0];
+			for (int i = 0; i < N; i++) {
+				restDestDriver += w[k][i];
+			}
+			IloConstraint consRestOriginDriver = (restDestDriver <= v[k] * N);
+			consRestOriginDriver.setName(namevarDD);
+			modelo.add(consRestOriginDriver);
+			cons_destino_veiculo.add(consRestOriginDriver);
+			restDestDriver.end();
+		}
 
 		IloConstraintArray cons_chegada(env);
 		for (int i = 1; i < N; i++) {
@@ -191,6 +210,21 @@ int main(int argc, char** argv) {
 			modelo.add(consRestOrigin);
 			cons_chegada.add(consRestOrigin);
 			restOrig.end();
+		}
+		IloConstraintArray cons_chegada_veiculo(env);
+		for (int k = 0; k < K; k++) {
+			IloExpr restOrigDriver(env);
+			char* namevarD;
+			string name("veiculo_origin_" + to_string(k));
+			namevarD = &name[0];
+			for (int i = 0; i < N; i++) {
+				restOrigDriver += z[k][i];
+			}
+			IloConstraint consRestOriginDriver = (restOrigDriver <= v[k] * N);
+			consRestOriginDriver.setName(namevarD);
+			modelo.add(consRestOriginDriver);
+			cons_chegada.add(consRestOriginDriver);
+			restOrigDriver.end();
 		}
 
 		IloConstraintArray cons_array_chegada(env);
@@ -231,6 +265,24 @@ int main(int argc, char** argv) {
 				restSaida.end();
 			}
 		}
+
+		IloConstraintArray cons_array_veiculos3(env);
+		for (int k = 0; k < K; k++) {
+			IloExpr restVeiX(env);
+			char* namevar;
+			string name("veiculo_" + to_string(k) + "_utilizado");
+			namevar = &name[0];
+			for (int i = 0; i < N; i++) {
+				for (int j = 0; j < N; j++) {
+					restVeiX += x[k][i][j];
+				}
+			}
+			IloConstraint consRestVei = (restVeiX <= v[k]*N);
+			consRestVei.setName(namevar);
+			modelo.add(consRestVei);
+			cons_array_veiculos3.add(consRestVei);
+			restVeiX.end();
+		}
 		IloExpr depCli(env);
 		IloExpr depClient(env);
 		IloExpr cliDep(env);
@@ -269,6 +321,20 @@ int main(int argc, char** argv) {
 		//modelo.add(depCli == cliDep);
 		depCli.end();
 		cliDep.end();
+		
+		IloExpr sumVeiculos(env);
+		for (int k = 0; k < K; k++) {
+			char* namevarV;
+			string nameV("v_" + to_string(k));
+			namevarV = &nameV[0];
+			v[k].setName(namevarV);
+			sumVeiculos += v[k];
+		}
+		IloConstraint sumDrivers = (sumVeiculos >= qntMinVei);
+		sumDrivers.setName("SumDrivers");
+		modelo.add(sumDrivers);
+		sumVeiculos.end();
+
 		y[0].setBounds(0, 0);
 		y[0].setName("y_0");
 		IloExpr sumY(env);
